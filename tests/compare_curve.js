@@ -27,3 +27,11 @@ stat('새 목표 100점', New.vectorize(prob, W, H, { ...base, simplify: .5, tar
 let t = Date.now(); New.vectorize(prob, W, H, { ...base, simplify: 1 }); console.log('시간', Date.now() - t, 'ms');
 const r = New.vectorize(prob, W, H, { ...base, simplify: 1 });
 fs.writeFileSync(__dirname + '/.cmp.svg', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="#000"/><path fill="#fff" fill-rule="evenodd" d="${New.vectorize(prob, W, H, { ...base, simplify: 0.3, curve: false }).d}"/><path fill="none" stroke="#2aa8ff" stroke-width="3" d="${r.d}"/></svg>`);
+// v0.4: 합치기·곡률 배분·장력·구역
+for (const [lab, o] of [['합치기 0.01(무손실)', { merge: .01 }], ['합치기 0.3', { merge: .3 }], ['곡률 배분 0.5', { alloc: .5 }], ['곡률 0.5+합치기 0.01', { alloc: .5, merge: .01 }], ['장력 +0.2', { tension: .2 }], ['장력 −0.2', { tension: -.2 }]])
+  stat(lab, New.vectorize(prob, W, H, { ...base, simplify: 1, ...o }));
+{ // 구역: 위쪽 1/3(머리) = 오차 0.5, 나머지 = 3
+  const gw = 64, gh = 80, g = new Uint8Array(gw * gh); for (let y = 0; y < gh / 3; y++) for (let x = 0; x < gw; x++) g[y * gw + x] = 1;
+  stat('구역(머리0.5/몸3)', New.vectorize(prob, W, H, { ...base, simplify: 3, zg: { g, gw, gh }, zones: [null, { tol: .5, tension: 0 }] }));
+  stat('전체 3', New.vectorize(prob, W, H, { ...base, simplify: 3 }));
+}

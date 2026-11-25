@@ -40,6 +40,10 @@ main{flex:1;display:grid;grid-template-columns:230px minmax(0,1fr) 300px;min-hei
 #busy{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:rgba(38,38,38,.92);border:1px solid #555;padding:5px 12px;font-size:12px;display:none}
 #pts{position:absolute;left:10px;top:10px;background:rgba(38,38,38,.88);border:1px solid #444;padding:4px 10px;font-size:13px;font-weight:700;display:none;font-variant-numeric:tabular-nums}
 #pts small{font-weight:400;color:var(--sub);margin-left:6px}
+#tools{position:absolute;right:10px;top:10px;display:flex;gap:2px}
+#tools button{height:24px;font-size:11px;padding:0 10px}
+#tools [data-t="1"].on{box-shadow:inset 0 -3px 0 #4a8fe0}#tools [data-t="2"].on{box-shadow:inset 0 -3px 0 #f2c94c}
+#cv.paint{cursor:none}
 #views{position:absolute;left:10px;bottom:10px;display:flex;gap:2px}
 #views button{height:24px;font-size:11px;padding:0 10px}
 #right{border-left:1px solid #111;display:flex;flex-direction:column;min-height:0}
@@ -92,7 +96,7 @@ input[type=range]::-moz-range-thumb{width:9px;height:15px;border-radius:0;backgr
   <button id="clear" class="b" disabled>목록 비우기</button>
   <span class="sp"></span>
   <div id="mstat"><span id="mtext">엔진 대기</span><div id="mbar"><i></i></div></div>
-  <span style="color:var(--dim);font-size:11px;margin-left:8px">v0.3.0</span>
+  <span style="color:var(--dim);font-size:11px;margin-left:8px">v0.4.0</span>
 </div>
 <input id="fin" type="file" accept="image/*" multiple hidden>
 <main>
@@ -102,8 +106,15 @@ input[type=range]::-moz-range-thumb{width:9px;height:15px;border-radius:0;backgr
     <div id="empty">사진을 끌어다 놓기</div>
     <div id="busy"></div>
     <div id="pts"></div>
+    <div id="tools">
+      <button data-t="view" class="b ov on" title="보기 (V)">보기</button>
+      <button data-t="1" class="b ov" title="브러시 A (A) · 칠한 곳은 A 허용 오차·장력">A</button>
+      <button data-t="2" class="b ov" title="브러시 B (B) · 칠한 곳은 B 허용 오차·장력">B</button>
+      <button data-t="0" class="b ov" title="지우개 (E)">지우개</button>
+      <button id="zclear" class="b ov" title="이 사진의 브러시 모두 지우기">비우기</button>
+    </div>
     <div id="views">
-      <button data-v="line" class="b ov on" title="외곽선 보기 (1)">외곽선</button>
+      <button data-v="line" class="b ov on" title="벡터 보기 (1)">벡터</button>
       <button data-v="cut" class="b ov" title="누끼 보기 (2)">누끼</button>
       <button data-v="mask" class="b ov" title="마스크 보기 (3)">마스크</button>
     </div>
@@ -124,7 +135,7 @@ input[type=range]::-moz-range-thumb{width:9px;height:15px;border-radius:0;backgr
     </div>
     <div id="bottom">
       <div id="stats"></div>
-      <button id="sSvg" class="b red main" disabled title="선택한 사진의 외곽선 SVG 저장">SVG 저장</button>
+      <button id="sSvg" class="b red main" disabled title="선택한 사진의 벡터 SVG 저장">SVG 저장</button>
       <div class="two"><button id="sPng" class="b" disabled title="배경을 지운 PNG">투명 PNG</button><button id="sMask" class="b" disabled title="흑백 마스크 PNG">마스크 PNG</button></div>
       <button id="sZip" class="b" disabled title="처리된 모든 사진의 SVG·PNG·마스크를 ZIP 하나로">전체 ZIP</button>
     </div>
@@ -304,24 +315,41 @@ const Core = (() => {
     if (!(al > eps) || !(ar > eps) || al > seg * 2 || ar > seg * 2) al = ar = seg / 3;   // 실패·과도 = 1/3 규칙
     return [p0, add(p0, mul(t1, al)), add(p3, mul(t2, ar)), p3];
   }
-  function maxErr(P, b, u) {
+  // 점별 허용 오차 E[i](제곱) 대비 비율의 최대값과 위치
+  function maxErr(P, E, b, u) {
     let mx = 0, at = P.length >> 1;
-    for (let i = 1; i < P.length - 1; i++) { const d = sub(bez(b, u[i]), P[i]), e = dot(d, d); if (e >= mx) { mx = e; at = i; } }
+    for (let i = 1; i < P.length - 1; i++) { const d = sub(bez(b, u[i]), P[i]), e = dot(d, d) / E[i]; if (e >= mx) { mx = e; at = i; } }
     return [mx, at];
   }
   function reparam(P, b, u) {
     return u.map((t, i) => { const d = sub(bez(b, t), P[i]), d1 = bezD1(b, t), d2 = bezD2(b, t), den = dot(d1, d1) + dot(d, d2);
       const n = den ? t - dot(d, d1) / den : t; return Math.min(1, Math.max(0, n)); });
   }
-  function fitCubic(P, t1, t2, e2, out, depth) {
-    if (P.length === 2 || depth > 40) { const d = len(sub(P[P.length - 1], P[0])) / 3; out.push([P[0], add(P[0], mul(t1, d)), add(P[P.length - 1], mul(t2, d)), P[P.length - 1]]); return; }
-    let u = chordU(P), b = genBez(P, u, t1, t2), [er, sp] = maxErr(P, b, u);
-    if (er < e2) { out.push(b); return; }
-    if (er < e2 * 9) for (let k = 0; k < 6; k++) { u = reparam(P, b, u); b = genBez(P, u, t1, t2); [er, sp] = maxErr(P, b, u); if (er < e2) { out.push(b); return; } }
-    sp = Math.max(1, Math.min(P.length - 2, sp));
-    const tc = norm(sub(P[sp - 1], P[sp + 1]));
-    fitCubic(P.slice(0, sp + 1), t1, tc, e2, out, depth + 1);
-    fitCubic(P.slice(sp), mul(tc, -1), t2, e2, out, depth + 1);
+  // P[i0..i1] 하나의 베지어로 (끝 접선 고정). 반환 {b, er(비율)}
+  function fitOnce(P, E, i0, i1, t1, t2) {
+    const Q = P.slice(i0, i1 + 1), EQ = E.slice(i0, i1 + 1);
+    if (Q.length === 2) { const d = len(sub(Q[1], Q[0])) / 3; return { b: [Q[0], add(Q[0], mul(t1, d)), add(Q[1], mul(t2, d)), Q[1]], er: 0, sp: 0 }; }
+    let u = chordU(Q), b = genBez(Q, u, t1, t2), [er, sp] = maxErr(Q, EQ, b, u);
+    if (er >= 1 && er < 9) for (let k = 0; k < 6; k++) { u = reparam(Q, b, u); b = genBez(Q, u, t1, t2); [er, sp] = maxErr(Q, EQ, b, u); if (er < 1) break; }
+    return { b, er, sp };
+  }
+  function fitCubic(P, E, i0, i1, t1, t2, out, depth) {
+    const r = fitOnce(P, E, i0, i1, t1, t2);
+    if (r.er < 1 || i1 - i0 < 2 || depth > 40) { out.push({ b: r.b, i0, i1 }); return; }
+    const s = i0 + Math.max(1, Math.min(i1 - i0 - 1, r.sp)), tc = norm(sub(P[s - 1], P[s + 1]));
+    fitCubic(P, E, i0, s, t1, tc, out, depth + 1);
+    fitCubic(P, E, s, i1, mul(tc, -1), t2, out, depth + 1);
+  }
+  const tanOut = b => len(sub(b[1], b[0])) > 1e-6 ? norm(sub(b[1], b[0])) : norm(sub(b[3], b[0]));
+  const tanIn = b => len(sub(b[2], b[3])) > 1e-6 ? norm(sub(b[2], b[3])) : norm(sub(b[0], b[3]));
+  // 점 합치기: 이웃 두 구간을 하나로 맞춰 허용 오차×fac 안이면 합침 (끝 접선 유지 → 매끄러움 유지)
+  function mergeSegs(P, E, segs, fac2) {
+    let k = 0;
+    while (k < segs.length - 1) {
+      const a = segs[k], c = segs[k + 1], r = fitOnce(P, E, a.i0, c.i1, tanOut(a.b), tanIn(c.b));
+      if (r.er <= fac2) segs.splice(k, 2, { b: r.b, i0: a.i0, i1: c.i1 }); else k++;
+    }
+    return segs;
   }
   // 열린 꺾은선 RDP
   function rdpOpen(P, eps) {
@@ -350,31 +378,58 @@ const Core = (() => {
     return { p: q, edge, mark };
   }
   // 윤곽 하나 → 구간들 [{l:[끝점]} | {c:[c1,c2,끝점]}], 시작점
-  function fitLoop(L, tol, curve) {
-    const { p, edge, mark } = L, n = p.length, e2 = tol * tol, segs = [];
+  // L.tol[i] = 점별 허용 오차(px), L.ten[i] = 점별 장력(−0.3~+0.3), m = 오차 배율(목표 점 수용), fac2 = 합치기 허용(0 = 끔)
+  function fitLoop(L, m, curve, fac2) {
+    const { p, edge, mark } = L, n = p.length, segs = [];
+    const E = L.tol.map(t => Math.max(1e-4, (t * m) ** 2));
     let br = []; for (let i = 0; i < n; i++) if (mark[i]) br.push(i);
-    if (!curve) {   // 직선 모드: 꺾은선 단순화
-      const r = simplify(p, tol); for (let i = 1; i < r.length; i++) segs.push({ l: r[i] });
+    if (!curve) {   // 직선 모드: 꺾은선 단순화(전체 오차)
+      const r = simplify(p, L.tol0 * m); for (let i = 1; i < r.length; i++) segs.push({ l: r[i] });
       segs.push({ l: r[0] });
       return { start: r[0], segs };
     }
+    const emit = (P, EP, T, t1, t2) => {   // P 구간 맞춤 → 합치기 → 장력 → segs
+      const out = []; fitCubic(P, EP, 0, P.length - 1, t1, t2, out, 0);
+      if (fac2 > 0) mergeSegs(P, EP, out, fac2);
+      for (const s of out) {
+        const k = 1 + T[(s.i0 + s.i1) >> 1], b = s.b;
+        segs.push({ c: [add(b[0], mul(sub(b[1], b[0]), k)), add(b[3], mul(sub(b[2], b[3]), k)), b[3]] });
+      }
+    };
     if (!br.length) {   // 모서리 없는 닫힌 곡선
-      const ring = p.concat([p[0]]), t = norm(sub(p[Math.min(3, n - 1)], p[n - Math.min(3, n - 1)])), out = [];
-      fitCubic(ring, t, mul(t, -1), e2, out, 0);
-      out.forEach(b => segs.push({ c: [b[1], b[2], b[3]] }));
+      const ring = p.concat([p[0]]), k3 = Math.min(3, n - 1), t = norm(sub(p[k3], p[n - k3]));
+      emit(ring, E.concat([E[0]]), L.ten.concat([L.ten[0]]), t, mul(t, -1));
       return { start: p[0], segs };
     }
     for (let k = 0; k < br.length; k++) {
-      const a = br[k], b = br[(k + 1) % br.length], piece = [];
-      for (let i = a; ; i = (i + 1) % n) { piece.push(p[i]); if (i === b && piece.length > 1) break; if (piece.length > n + 1) break; }
-      if (piece.length < 2) continue;
-      let allEdge = true; for (let i = a; ; i = (i + 1) % n) { if (!edge[i]) { allEdge = false; break; } if (i === b) break; }
-      if (allEdge || piece.length < 4) { rdpOpen(piece, .5).slice(1).forEach(q => segs.push({ l: q })); continue; }
-      const k3 = Math.min(3, piece.length - 1), out = [];
-      fitCubic(piece, norm(sub(piece[k3], piece[0])), norm(sub(piece[piece.length - 1 - k3], piece[piece.length - 1])), e2, out, 0);
-      out.forEach(bz => segs.push({ c: [bz[1], bz[2], bz[3]] }));
+      const a = br[k], b = br[(k + 1) % br.length], idx = [];
+      for (let i = a; ; i = (i + 1) % n) { idx.push(i); if (i === b && idx.length > 1) break; if (idx.length > n + 1) break; }
+      if (idx.length < 2) continue;
+      const piece = idx.map(i => p[i]);
+      if (idx.every(i => edge[i]) || piece.length < 4) { rdpOpen(piece, .5).slice(1).forEach(q => segs.push({ l: q })); continue; }
+      const k3 = Math.min(3, piece.length - 1);
+      emit(piece, idx.map(i => E[i]), idx.map(i => L.ten[i]), norm(sub(piece[k3], piece[0])), norm(sub(piece[piece.length - 1 - k3], piece[piece.length - 1])));
     }
     return { start: p[br[0]], segs };
+  }
+  // 점별 허용 오차·장력: 브러시 구역(o.zg, o.zones) + 곡률 배분(o.alloc 0~1)
+  function loopParams(L, w, h, o) {
+    const { p } = L, n = p.length, tol = new Float32Array(n), ten = new Float32Array(n), zg = o.zg;
+    for (let i = 0; i < n; i++) {
+      let z = 0;
+      if (zg) { const gx = Math.min(zg.gw - 1, Math.max(0, Math.floor(p[i][0] * zg.gw / w))), gy = Math.min(zg.gh - 1, Math.max(0, Math.floor(p[i][1] * zg.gh / h))); z = zg.g[gy * zg.gw + gx]; }
+      const Z = z && o.zones && o.zones[z];
+      tol[i] = Z ? Z.tol : o.simplify; ten[i] = Z ? Z.tension : (o.tension || 0);
+    }
+    if (o.alloc > 0 && n > 20) {   // 곡률 큰 곳 = 오차 작게(점 촘촘), 완만한 곳 = 오차 크게
+      const far = (i, st) => { let k = 1, q = p[(i + st + n) % n]; while (k < 14 && len(sub(q, p[i])) < 5) { k++; q = p[((i + st * k) % n + n) % n]; } return q; };
+      const cv = new Float32Array(n); for (let i = 0; i < n; i++) cv[i] = 1 - dot(norm(sub(p[i], far(i, -1))), norm(sub(far(i, 1), p[i])));
+      const med = Float32Array.from(cv).sort()[n >> 1] + 2e-3;
+      let f = Array.from(cv, c => Math.min(3, Math.max(0.6, ((med) / (c + 2e-3)) ** (0.6 * o.alloc))));
+      for (let pass = 0; pass < 3; pass++) f = f.map((v, i) => (f[(i - 2 + n) % n] + f[(i - 1 + n) % n] + v + f[(i + 1) % n] + f[(i + 2) % n]) / 5);
+      for (let i = 0; i < n; i++) tol[i] *= f[i];
+    }
+    return { ...L, tol: Array.from(tol), ten: Array.from(ten), tol0: o.simplify };
   }
   // 맞춘 윤곽들 → SVG d · 점 수 · 앵커 좌표(원본 픽셀)
   function toPath(fits, s) {
@@ -390,20 +445,29 @@ const Core = (() => {
     }
     return { d, nodes, paths: fits.length, anchors };
   }
-  // bin → 외곽선. o.target(>0) = 점 수가 이 값 이하가 되는 가장 작은 허용 오차를 찾음
+  // bin → 벡터. o.target(>0) = 점 수가 이 값 이하가 되는 가장 작은 오차 배율을 찾음
   function outline(bin, w, h, o) {
-    const loops = trace(bin, w, h, Math.max(8, Math.round(4 * o.simplify + 8))).map(l => prepLoop(l, w, h, o.corner || 0));   // 오차보다 작은 점 같은 고리는 버림
-    const run = tol => toPath(loops.map(L => fitLoop(L, tol, o.curve)), o.scale);
-    let tol = o.simplify, r = run(tol);
-    if (o.target > 0 && r.nodes > o.target) {
-      let lo = tol, hi = 64, best = null;
-      for (let k = 0; k < 12; k++) { const m = (lo + hi) / 2, x = run(m); if (x.nodes <= o.target) { best = x; hi = m; tol = m; } else lo = m; }
-      r = best || run(hi); if (!best) tol = hi;
+    const pre = trace(bin, w, h, Math.max(8, Math.round(4 * o.simplify + 8))).map(l => prepLoop(l, w, h, o.corner || 0));   // 오차보다 작은 점 같은 고리는 버림
+    const loops = pre.map(L => loopParams(L, w, h, o));
+    const fac2 = o.merge > 0 ? (1 + o.merge) ** 2 : 0;
+    const run = (m, LS = loops) => toPath(LS.map(L => fitLoop(L, m, o.curve, fac2)), o.scale);
+    let m = 1, r = run(1);
+    if (o.alloc > 0 && o.curve && !(o.target > 0)) {   // 곡률 배분 = 점 수는 그대로 두고 배치만 바꿈 → 배분 없을 때 점 수에 맞춤
+      const goal = run(1, pre.map(L => loopParams(L, w, h, { ...o, alloc: 0 }))).nodes;
+      let lo = .5, hi = 4;
+      for (let k = 0; k < 7; k++) { const mid = Math.sqrt(lo * hi), x = run(mid); if (x.nodes <= goal) { hi = mid; r = x; m = mid; } else lo = mid; }
+      if (r.nodes > goal) { m = hi; r = run(hi); }
     }
-    return { ...r, tol };
+    if (o.target > 0 && r.nodes > o.target) {
+      let lo = 1, hi = 64, best = null;
+      for (let k = 0; k < 12; k++) { const x = run((lo + hi) / 2); if (x.nodes <= o.target) { best = x; hi = (lo + hi) / 2; } else lo = (lo + hi) / 2; }
+      m = hi; r = best || run(hi);
+    }
+    return { ...r, tol: o.simplify * m, mult: m };
   }
   // 전체: 확률 마스크(0..1, w×h) → {d, nodes, paths, anchors, tol, bin, cut}
-  // o: threshold, smooth, simplify(허용 오차 px), curve, corner, target, speck, hole, people, offset(작업 px), cut(작업 px, 0=없음), scale
+  // o: threshold, smooth, simplify(허용 오차 px), curve, corner, target, merge(0~1, 0=끔), alloc(0~1), tension(−0.3~0.3),
+  //    zg({g,gw,gh} 브러시 구역 격자, 0/1/2), zones([, {tol, tension}, {tol, tension}]), speck, hole, people, offset, cut, scale
   function vectorize(prob, w, h, o) {
     const b = blur(prob, w, h, o.smooth);
     let bin = new Uint8Array(w * h);
@@ -413,7 +477,7 @@ const Core = (() => {
     const r = { ...outline(bin, w, h, o), bin, cut: '' };
     if (o.cut > 0) {
       const c = offset(cleanup(Uint8Array.from(bin), w, h, { speck: 0, people: 0, hole: Infinity }), w, h, o.cut);
-      r.cut = outline(c, w, h, { ...o, corner: 0, target: 0, simplify: Math.max(o.simplify, 1) }).d;
+      r.cut = outline(c, w, h, { ...o, corner: 0, target: 0, alloc: 0, zg: null, tension: 0, simplify: Math.max(o.simplify, 1) }).d;
     }
     return r;
   }
@@ -454,15 +518,25 @@ document.getElementById('bevel').textContent =
 const GROUPS = [
   ['경계', [
     { k: 'thr', l: '경계 기준', t: 'range', min: .05, max: .95, s: .05, d: .5, f: 2, tip: '낮추면 잔머리·반투명 부분까지 포함, 높이면 안쪽을 땀' },
-    { k: 'offset', l: '확장·축소', t: 'range', min: -10, max: 10, s: 1, d: 0, u: 'px', tip: '외곽선을 바깥(+)·안쪽(−)으로 이동 (원본 픽셀)' },
+    { k: 'offset', l: '확장·축소', t: 'range', min: -10, max: 10, s: 1, d: 0, u: 'px', tip: '벡터를 바깥(+)·안쪽(−)으로 이동 (원본 픽셀)' },
     { k: 'feather', l: '페더', t: 'range', min: 0, max: 10, s: 1, d: 1, u: 'px', tip: 'PNG·마스크 경계를 흐리는 정도' },
   ]],
   ['곡선', [
     { k: 'smooth', l: '부드럽게', t: 'range', min: 0, max: 12, s: 1, d: 2, u: 'px', tip: '외곽의 잔물결 제거' },
     { k: 'simplify', l: '허용 오차', t: 'range', min: .3, max: 6, s: .1, d: 1, f: 1, u: 'px', tip: '곡선이 원래 윤곽에서 벗어나도 되는 최대 거리(작업 해상도 px). 클수록 점이 적고, 작을수록 정확' },
     { k: 'target', l: '목표 점 수', t: 'range', min: 0, max: 1000, s: 10, d: 0, z: '끔', tip: '점 수가 이 값 이하가 되도록 허용 오차를 자동으로 키움 (0 = 끔)' },
+    { k: 'merge', l: '점 합치기', t: 'range', min: 0, max: 100, s: 1, d: 5, z: '끔', u: '%', tip: '이웃한 곡선 두 개를 하나로 합쳐도 허용 오차의 (100+이 값)% 안이면 합침. 1~5% = 정확도 거의 그대로 점만 감소' },
+    { k: 'alloc', l: '곡률 배분', t: 'range', min: 0, max: 100, s: 5, d: 0, z: '끔', tip: '점 수는 그대로 두고, 많이 휘는 곳(머리카락·귀)에 점을 몰아주고 완만한 곳(팔·몸통)은 줄임' },
+    { k: 'tension', l: '장력', t: 'range', min: -30, max: 30, s: 1, d: 0, u: '%', tip: '핸들 길이 조절. + = 둥글고 통통하게, − = 팽팽하고 각지게 (그만큼 원래 윤곽에서 벗어남)' },
     { k: 'corner', l: '모서리 보존', t: 'range', min: 0, max: 100, s: 5, d: 0, tip: '모자 챙·어깨 같은 꺾인 곳을 각지게 유지 (0 = 끔)' },
     { k: 'curve', l: '연결', t: 'select', d: 'bezier', o: [['bezier', '베지어 곡선'], ['line', '직선']] },
+  ]],
+  ['부분 브러시', [
+    { k: 'zAtol', l: 'A 허용 오차', t: 'range', min: .2, max: 6, s: .1, d: .5, f: 1, u: 'px', tip: '브러시 A로 칠한 곳의 허용 오차' },
+    { k: 'zAten', l: 'A 장력', t: 'range', min: -30, max: 30, s: 1, d: 0, u: '%' },
+    { k: 'zBtol', l: 'B 허용 오차', t: 'range', min: .2, max: 6, s: .1, d: 3, f: 1, u: 'px', tip: '브러시 B로 칠한 곳의 허용 오차' },
+    { k: 'zBten', l: 'B 장력', t: 'range', min: -30, max: 30, s: 1, d: 0, u: '%' },
+    { k: 'bsize', l: '브러시 크기', t: 'range', min: 5, max: 300, s: 5, d: 60, u: 'px', tip: '화면 기준 지름. [ ] 키로 조절' },
   ]],
   ['정리', [
     { k: 'speck', l: '조각 제거', t: 'range', min: 0, max: 20, s: .5, d: 2, f: 1, u: '%', tip: '가장 큰 덩어리 대비 이 크기보다 작은 조각 제거' },
@@ -475,7 +549,7 @@ const GROUPS = [
     { k: 'fillColor', l: '채움 색', t: 'color', d: '#000000' },
     { k: 'strokeColor', l: '선 색', t: 'color', d: '#000000' },
     { k: 'strokeW', l: '선 굵기', t: 'range', min: .5, max: 20, s: .5, d: 2, f: 1, u: 'pt' },
-    { k: 'cut', l: '칼선 여백', t: 'range', min: 0, max: 100, s: 1, d: 0, u: 'px', tip: '외곽에서 이만큼 띄운 칼선 패스를 따로 추가 (0 = 없음, 원본 픽셀)' },
+    { k: 'cut', l: '칼선 여백', t: 'range', min: 0, max: 100, s: 1, d: 0, u: 'px', tip: '벡터에서 이만큼 띄운 칼선 패스를 따로 추가 (0 = 없음, 원본 픽셀)' },
     { k: 'cutColor', l: '칼선 색', t: 'color', d: '#ff0000' },
   ]],
   ['PNG 출력', [
@@ -485,7 +559,7 @@ const GROUPS = [
   ['파일', [
     { k: 'prefix', l: '앞 글자', t: 'text', d: '', tip: '저장 파일 이름 앞에 붙임' },
     { k: 'suffix', l: '뒤 글자', t: 'text', d: '', tip: '저장 파일 이름 뒤(_outline 등 앞)에 붙임' },
-    { k: 'res', l: '작업 해상도', t: 'select', d: '2048', o: [['1024', '1024px'], ['2048', '2048px'], ['3072', '3072px']], tip: '외곽선 계산 해상도. 높을수록 정밀·느림' },
+    { k: 'res', l: '작업 해상도', t: 'select', d: '2048', o: [['1024', '1024px'], ['2048', '2048px'], ['3072', '3072px']], tip: '벡터 계산 해상도. 높을수록 정밀·느림' },
   ]],
   ['미리보기', [
     { k: 'lineColor', l: '선 색', t: 'color', d: '#ff3b30' },
@@ -514,20 +588,25 @@ let presetName = (LASTOK && LAST.name) || '기본';
 let userPresets = store.get('vman.presets', []);
 
 /* ================= 되돌리기 (Ctrl+Z / Ctrl+Shift+Z·Ctrl+Y, 최대 50개) ================= */
-const HMAX = 50; let hist = [], fut = [], pend = null, ht = 0;
+const HMAX = 50; let hist = [], fut = [], pend = null, ht = 0;   // 항목: {k:'s', js} 설정 / {k:'b', it, g} 브러시
 const snapNow = () => JSON.stringify({ S, n: presetName });
 function snap() { // 바꾸기 직전에 호출. 0.4초 안의 연속 변경은 하나로
   if (pend === null) pend = snapNow();
   clearTimeout(ht); ht = setTimeout(commitHist, 400);
 }
+function pushHist(e) { hist.push(e); if (hist.length > HMAX) hist.shift(); fut = []; }
 function commitHist() {
   clearTimeout(ht);
-  if (pend !== null && pend !== snapNow()) { hist.push(pend); if (hist.length > HMAX) hist.shift(); fut = []; }
+  if (pend !== null && pend !== snapNow()) pushHist({ k: 's', js: pend });
   pend = null;
 }
 function restore(js) { const o = JSON.parse(js); S = { ...DEF, ...o.S }; presetName = o.n; syncUI(); store.set('vman.last', { name: presetName, v: S, ver: 3 }); if (cur) cur.alpha = null; update(); }
-function undo() { commitHist(); if (!hist.length) return flash('되돌릴 것 없음'); fut.push(snapNow()); restore(hist.pop()); flash(`되돌리기 · 남은 ${hist.length}`); }
-function redo() { commitHist(); if (!fut.length) return flash('다시 할 것 없음'); hist.push(snapNow()); restore(fut.pop()); flash(`다시 실행 · 남은 ${fut.length}`); }
+function swap(e, to) {   // e 를 적용하고, 되돌릴 반대 항목을 to 에 넣음
+  if (e.k === 's') { to.push({ k: 's', js: snapNow() }); restore(e.js); }
+  else { to.push({ k: 'b', it: e.it, g: e.it.zg.g.slice() }); e.it.zg.g.set(e.g); zgCount(e.it); if (cur && cur.it === e.it) update(); }
+}
+function undo() { commitHist(); if (!hist.length) return flash('되돌릴 것 없음'); swap(hist.pop(), fut); flash(`되돌리기 · 남은 ${hist.length}`); }
+function redo() { commitHist(); if (!fut.length) return flash('다시 할 것 없음'); swap(fut.pop(), hist); flash(`다시 실행 · 남은 ${fut.length}`); }
 let ft = 0;
 function flash(t) { busy(t); clearTimeout(ft); ft = setTimeout(() => { if ($('busy').textContent === t) busy(''); }, 900); }
 
@@ -566,7 +645,7 @@ function syncUI() {
   $('stage').className = 'bg-' + S.bg + ($('stage').classList.contains('drag') ? ' drag' : '');
   presetLabel();
 }
-const PREVIEW_ONLY = ['lineColor', 'lineW', 'bg', 'showPts'], OUTPUT_ONLY = ['svgMode', 'fillColor', 'strokeColor', 'strokeW', 'cutColor', 'pngScale', 'maskInv', 'prefix', 'suffix', 'feather'];
+const PREVIEW_ONLY = ['lineColor', 'lineW', 'bg', 'showPts', 'bsize'], OUTPUT_ONLY = ['svgMode', 'fillColor', 'strokeColor', 'strokeW', 'cutColor', 'pngScale', 'maskInv', 'prefix', 'suffix', 'feather'];
 let tm = 0;
 function changed(k) {
   const s = SPEC[k]; if (s && s.t === 'range') $('v_' + k).textContent = fmt(s, S[k]);
@@ -605,7 +684,7 @@ $('plist').onclick = async e => {
   } else if (a.dataset.a === 'reset') { applyPreset(BUILTIN[0]); drawPList(); }
   else if (a.dataset.a === 'exp') {
     if (!userPresets.length) { popup('내보낼 사용자 프리셋이 없습니다.', [['ok', '확인']]); return; }
-    save(new Blob([JSON.stringify({ app: 'vectorman', version: '0.3.0', presets: userPresets.map(p => ({ name: p.name, values: p.v })) }, null, 2)], { type: 'application/json' }), 'vectorman_presets.json');
+    save(new Blob([JSON.stringify({ app: 'vectorman', version: '0.4.0', presets: userPresets.map(p => ({ name: p.name, values: p.v })) }, null, 2)], { type: 'application/json' }), 'vectorman_presets.json');
   } else if (a.dataset.a === 'imp') $('fpreset').click();
 };
 function savePresets() { if (!store.set('vman.presets', userPresets)) popup('이 브라우저에 저장하지 못했습니다.\n내보내기로 파일에 백업하세요.', [['ok', '확인']]); }
@@ -729,8 +808,10 @@ async function infer(bmp) {
 }
 
 /* ================= 마스크 → 결과 ================= */
-function opts(scale) {
+function opts(scale, it) {
   return { threshold: S.thr, smooth: S.smooth, simplify: S.simplify, target: S.target, curve: S.curve === 'bezier', corner: S.corner,
+           merge: S.merge / 100, alloc: S.alloc / 100, tension: S.tension / 100,
+           zg: it && it.zg && it.zgN ? it.zg : null, zones: [null, { tol: S.zAtol, tension: S.zAten / 100 }, { tol: S.zBtol, tension: S.zBten / 100 }],
            speck: S.speck / 100, hole: S.holeAll ? Infinity : S.hole / 100, people: +S.people,
            offset: Math.round(S.offset / scale), cut: S.cut ? Math.max(1, Math.round(S.cut / scale)) : 0, scale };
 }
@@ -775,7 +856,7 @@ function buildSVG(r, W, H) {
 const fname = (n, tail) => (S.prefix || '') + n.replace(/\.[^.]+$/, '') + (S.suffix || '') + tail;
 async function renderFiles(it, bmp) {
   const W = bmp.width, H = bmp.height, [ww, wh] = workSize(W, H), sc = W / ww;
-  const prob = probAt(it.mask, ww, wh), r = Core.vectorize(prob, ww, wh, opts(sc));
+  const prob = probAt(it.mask, ww, wh), r = Core.vectorize(prob, ww, wh, opts(sc, it));
   const al = alphaOf(prob, r.bin, ww, wh, sc), k = +S.pngScale, PW = Math.max(1, Math.round(W * k)), PH = Math.max(1, Math.round(H * k));
   const cut = new OffscreenCanvas(PW, PH), g = cut.getContext('2d');
   g.imageSmoothingQuality = 'high'; g.drawImage(bmp, 0, 0, PW, PH); g.globalCompositeOperation = 'destination-in'; g.drawImage(alphaCanvas(al, ww, wh), 0, 0, PW, PH);
@@ -834,7 +915,7 @@ function update() {
   const W = cur.bmp.width, H = cur.bmp.height, [ww, wh] = workSize(W, H), key = ww + 'x' + wh;
   if (cur.key !== key) { cur.prob = probAt(cur.it.mask, ww, wh); cur.key = key; cur.ww = ww; cur.wh = wh; }
   const t = performance.now();
-  res = Core.vectorize(cur.prob, ww, wh, opts(W / ww));
+  res = Core.vectorize(cur.prob, ww, wh, opts(W / ww, cur.it));
   res.path = new Path2D(res.d); res.cutPath = res.cut ? new Path2D(res.cut) : null; cur.alpha = null;
   $('stats').textContent = `${W}×${H} · 작업 ${ww}×${wh} · ${(performance.now() - t).toFixed(0)}ms`;
   $('pts').innerHTML = `점 ${res.nodes.toLocaleString()}개<small>패스 ${res.paths} · 오차 ${res.tol.toFixed(1)}px${S.target && res.tol > S.simplify ? ' (자동)' : ''}</small>`;
@@ -848,6 +929,7 @@ function draw() {
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, Wc, Hc);
   if (!cur) return;
   const W = cur.bmp.width, H = cur.bmp.height, s = Math.min((Wc - 24) / W, (Hc - 60) / H), ox = (Wc - W * s) / 2, oy = (Hc - 36 - H * s) / 2;
+  cur.vw = { ox, oy, s };
   const ready = cur.it.mask && res;
   if (!ready || view === 'line') {
     g.drawImage(cur.bmp, ox, oy, W * s, H * s);
@@ -857,11 +939,13 @@ function draw() {
     g.save(); g.clip(res.path, 'evenodd'); g.drawImage(cur.bmp, 0, 0); g.restore();
     g.lineWidth = S.lineW / s; g.strokeStyle = S.lineColor; g.lineJoin = 'round'; g.stroke(res.path);
     if (res.cutPath) { g.setLineDash([6 / s, 4 / s]); g.strokeStyle = S.cutColor; g.stroke(res.cutPath); g.setLineDash([]); }
+    if (cur.it.zgN || tool !== 'view') drawZones(g);
     if (S.showPts) {   // 고정점: 흰 사각 + 선 색 테두리
       const a = res.anchors, q = 3.5 / s; g.fillStyle = '#fff'; g.strokeStyle = S.lineColor; g.lineWidth = 1 / s;
       for (let i = 0; i < a.length; i += 2) { g.fillRect(a[i] - q, a[i + 1] - q, 2 * q, 2 * q); g.strokeRect(a[i] - q, a[i + 1] - q, 2 * q, 2 * q); }
     }
     g.restore();
+    if (tool !== 'view' && mouse) { g.beginPath(); g.arc(mouse[0], mouse[1], S.bsize / 2, 0, 7); g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.stroke(); g.strokeStyle = '#000'; g.lineWidth = .5; g.stroke(); }
     return;
   }
   if (!cur.alpha) cur.alpha = alphaOf(cur.prob, res.bin, cur.ww, cur.wh, W / cur.ww);
@@ -871,6 +955,63 @@ function draw() {
     g.drawImage(c, ox, oy, W * s, H * s);
   } else g.drawImage(alphaCanvas(cur.alpha, cur.ww, cur.wh, true, S.maskInv), ox, oy, W * s, H * s);
 }
+/* ================= 부분 브러시 ================= */
+let tool = 'view', mouse = null, painting = null;
+function ensureZg(it, W, H) {
+  if (!it.zg) { const k = 512 / Math.max(W, H); it.zg = { gw: Math.max(1, Math.round(W * k)), gh: Math.max(1, Math.round(H * k)) }; it.zg.g = new Uint8Array(it.zg.gw * it.zg.gh); it.zgN = 0; }
+  return it.zg;
+}
+function zgCount(it) { let n = 0; for (const v of it.zg.g) if (v) n++; it.zgN = n; }
+const ZCOL = [null, [74, 143, 224], [242, 201, 76]];
+function drawZones(g) {   // 이미지 좌표계(translate·scale 된 상태)에서 호출
+  const it = cur.it, zg = ensureZg(it, cur.bmp.width, cur.bmp.height);
+  if (!it.zc || it.zcDirty) {
+    const c = it.zc || new OffscreenCanvas(zg.gw, zg.gh), cg = c.getContext('2d'), id = cg.createImageData(zg.gw, zg.gh);
+    for (let i = 0; i < zg.g.length; i++) { const z = zg.g[i]; if (!z) continue; id.data.set([...ZCOL[z], 95], i * 4); }
+    cg.putImageData(id, 0, 0); it.zc = c; it.zcDirty = false;
+  }
+  g.save(); g.imageSmoothingEnabled = true; g.drawImage(it.zc, 0, 0, cur.bmp.width, cur.bmp.height); g.restore();
+}
+function paintAt(x, y) {
+  const it = cur.it, W = cur.bmp.width, H = cur.bmp.height, zg = ensureZg(it, W, H), v = cur.vw;
+  const ix = (x - v.ox) / v.s, iy = (y - v.oy) / v.s, k = zg.gw / W, gx = ix * k, gy = iy * k, r = S.bsize / 2 / v.s * k, val = +tool;
+  for (let yy = Math.max(0, Math.floor(gy - r)); yy <= Math.min(zg.gh - 1, Math.ceil(gy + r)); yy++)
+    for (let xx = Math.max(0, Math.floor(gx - r)); xx <= Math.min(zg.gw - 1, Math.ceil(gx + r)); xx++)
+      if ((xx + .5 - gx) ** 2 + (yy + .5 - gy) ** 2 <= r * r) zg.g[yy * zg.gw + xx] = val;
+  it.zcDirty = true;
+}
+function setTool(t) {
+  tool = t; [...$('tools').querySelectorAll('[data-t]')].forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  $('cv').classList.toggle('paint', t !== 'view'); if (t !== 'view' && view !== 'line') setView('line'); else draw();
+}
+$('tools').onclick = async e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.id === 'zclear') {
+    if (!cur || !cur.it.zgN) return;
+    if (await popup('이 사진의 브러시를 모두 지울까요?', [['cancel', '취소'], ['ok', '지우기', 'red']]) !== 'ok') return;
+    pushHist({ k: 'b', it: cur.it, g: cur.it.zg.g.slice() }); cur.it.zg.g.fill(0); cur.it.zgN = 0; cur.it.zcDirty = true; update(); return;
+  }
+  setTool(b.dataset.t);
+};
+const cvPos = e => { const r = $('cv').getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+$('cv').addEventListener('pointerdown', e => {
+  if (tool === 'view' || !cur || !cur.it.mask || !cur.vw) return;
+  $('cv').setPointerCapture(e.pointerId); commitHist();
+  const zg = ensureZg(cur.it, cur.bmp.width, cur.bmp.height); painting = zg.g.slice();
+  mouse = cvPos(e); paintAt(...mouse); draw();
+});
+$('cv').addEventListener('pointermove', e => {
+  mouse = cvPos(e);
+  if (painting) paintAt(...mouse);
+  if (tool !== 'view') draw();
+});
+$('cv').addEventListener('pointerleave', () => { mouse = null; if (tool !== 'view') draw(); });
+const endPaint = () => {
+  if (!painting) return;
+  const it = cur.it; pushHist({ k: 'b', it, g: painting }); painting = null; zgCount(it); update();
+};
+$('cv').addEventListener('pointerup', endPaint); $('cv').addEventListener('pointercancel', endPaint);
+
 function busy(t) { $('busy').textContent = t; $('busy').style.display = t ? 'block' : 'none'; }
 
 /* ================= 저장 ================= */
@@ -881,7 +1022,7 @@ function save(blob, name) {
 async function saveOne(kind) {
   if (!cur || !cur.it.mask) return;
   busy('저장 파일 만드는 중…');
-  try { const f = await renderFiles(cur.it, cur.bmp); save(f[kind], fname(cur.it.name, { svg: '_outline.svg', png: '_cutout.png', mask: '_mask.png' }[kind])); }
+  try { const f = await renderFiles(cur.it, cur.bmp); save(f[kind], fname(cur.it.name, { svg: '_vector.svg', png: '_cutout.png', mask: '_mask.png' }[kind])); }
   catch (e) { popup('저장하지 못했습니다.\n' + (e.message || e), [['ok', '확인']]); }
   finally { busy(''); }
 }
@@ -898,7 +1039,7 @@ async function saveZip() {
       busy(`ZIP 만드는 중 ${k + 1} / ${done.length}`);
       const it = done[k], bmp = await createImageBitmap(it.file), f = await renderFiles(it, bmp);
       bmp.close();
-      zip.file(fname(it.name, '_outline.svg'), f.svg); zip.file(fname(it.name, '_cutout.png'), f.png); zip.file(fname(it.name, '_mask.png'), f.mask);
+      zip.file(fname(it.name, '_vector.svg'), f.svg); zip.file(fname(it.name, '_cutout.png'), f.png); zip.file(fname(it.name, '_mask.png'), f.mask);
     }
     save(await zip.generateAsync({ type: 'blob' }), 'vectorman.zip');
   } catch (e) { popup('ZIP을 만들지 못했습니다.\n' + (e.message || e), [['ok', '확인']]); }
@@ -931,6 +1072,10 @@ document.addEventListener('keydown', e => {
   }
   if (e.target.matches('input[type=text]')) return;
   const v = { 1: 'line', 2: 'cut', 3: 'mask' }[e.key]; if (v) setView(v);
+  if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+    const tk = { v: 'view', a: '1', b: '2', e: '0' }[e.key.toLowerCase()]; if (tk) setTool(tk);
+    if (e.key === '[' || e.key === ']') { snap(); S.bsize = Math.max(5, Math.min(300, S.bsize + (e.key === ']' ? 10 : -10))); syncUI(); changed('bsize'); }
+  }
   if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && items.length && !e.target.matches('select,input')) { e.preventDefault(); select(Math.max(0, Math.min(items.length - 1, sel + (e.key === 'ArrowDown' ? 1 : -1)))); }
 });
 $('pickModel').onclick = () => $('fmodel').click();

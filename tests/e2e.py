@@ -63,6 +63,20 @@ async def main():
     u = await pg.input_value('#k_thr'); await pg.keyboard.press('Control+Shift+z'); await pg.wait_for_timeout(100)
     print('9 undo:', v0, '→', u, '| redo →', await pg.input_value('#k_thr'), '| 페더 라벨:', await pg.text_content('label[for=k_feather]'), '| 확장 범위:', await pg.get_attribute('#k_offset', 'max'))
     await pg.click('#presetBtn'); print('10 presets:', [await e.text_content() for e in await pg.query_selector_all('#plist .pi span')]); await pg.mouse.click(700, 400)
+    # 부분 브러시: A(오차 0.3)로 위쪽을 칠하면 점 수 증가 → Ctrl+Z 로 원래대로
+    await pg.click('.grp[data-g="부분 브러시"] > button') if await pg.is_hidden('#k_zAtol') else None
+    await pg.eval_on_selector('#k_zAtol', "(e)=>{e.value='0.3';e.dispatchEvent(new Event('input'))}"); await pg.wait_for_timeout(500)
+    p0 = await pg.text_content('#pts'); await pg.click('#tools [data-t="1"]')
+    box = await pg.query_selector('#cv'); bb = await box.bounding_box()
+    await pg.mouse.move(bb['x'] + bb['width'] * .35, bb['y'] + 120); await pg.mouse.down()
+    for k in range(12): await pg.mouse.move(bb['x'] + bb['width'] * (.35 + k * .025), bb['y'] + 140 + k * 8)
+    await pg.mouse.up(); await pg.wait_for_timeout(600); await pg.screenshot(path=OUT('5_brush.png'))
+    p1 = await pg.text_content('#pts'); await pg.click('#tools [data-t="view"]')
+    await pg.keyboard.press('Control+z'); await pg.wait_for_timeout(500)
+    print('11 brush:', p0, '→', p1, '| undo →', await pg.text_content('#pts'))
+    await pg.keyboard.press('Control+Shift+z'); await pg.wait_for_timeout(500)
+    async with pg.expect_download() as d: await pg.click('#sSvg')
+    dl = await d.value; print('12 svg name:', dl.suggested_filename)
     # 새로고침 후 마지막 설정 기억
     await pg.reload(); await pg.wait_for_timeout(500)
     print('8 reload:', await pg.text_content('#presetBtn'), await pg.input_value('#k_cut'))

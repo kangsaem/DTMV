@@ -165,24 +165,41 @@ const Core = (() => {
     if (!(al > eps) || !(ar > eps) || al > seg * 2 || ar > seg * 2) al = ar = seg / 3;   // 실패·과도 = 1/3 규칙
     return [p0, add(p0, mul(t1, al)), add(p3, mul(t2, ar)), p3];
   }
-  function maxErr(P, b, u) {
+  // 점별 허용 오차 E[i](제곱) 대비 비율의 최대값과 위치
+  function maxErr(P, E, b, u) {
     let mx = 0, at = P.length >> 1;
-    for (let i = 1; i < P.length - 1; i++) { const d = sub(bez(b, u[i]), P[i]), e = dot(d, d); if (e >= mx) { mx = e; at = i; } }
+    for (let i = 1; i < P.length - 1; i++) { const d = sub(bez(b, u[i]), P[i]), e = dot(d, d) / E[i]; if (e >= mx) { mx = e; at = i; } }
     return [mx, at];
   }
   function reparam(P, b, u) {
     return u.map((t, i) => { const d = sub(bez(b, t), P[i]), d1 = bezD1(b, t), d2 = bezD2(b, t), den = dot(d1, d1) + dot(d, d2);
       const n = den ? t - dot(d, d1) / den : t; return Math.min(1, Math.max(0, n)); });
   }
-  function fitCubic(P, t1, t2, e2, out, depth) {
-    if (P.length === 2 || depth > 40) { const d = len(sub(P[P.length - 1], P[0])) / 3; out.push([P[0], add(P[0], mul(t1, d)), add(P[P.length - 1], mul(t2, d)), P[P.length - 1]]); return; }
-    let u = chordU(P), b = genBez(P, u, t1, t2), [er, sp] = maxErr(P, b, u);
-    if (er < e2) { out.push(b); return; }
-    if (er < e2 * 9) for (let k = 0; k < 6; k++) { u = reparam(P, b, u); b = genBez(P, u, t1, t2); [er, sp] = maxErr(P, b, u); if (er < e2) { out.push(b); return; } }
-    sp = Math.max(1, Math.min(P.length - 2, sp));
-    const tc = norm(sub(P[sp - 1], P[sp + 1]));
-    fitCubic(P.slice(0, sp + 1), t1, tc, e2, out, depth + 1);
-    fitCubic(P.slice(sp), mul(tc, -1), t2, e2, out, depth + 1);
+  // P[i0..i1] 하나의 베지어로 (끝 접선 고정). 반환 {b, er(비율)}
+  function fitOnce(P, E, i0, i1, t1, t2) {
+    const Q = P.slice(i0, i1 + 1), EQ = E.slice(i0, i1 + 1);
+    if (Q.length === 2) { const d = len(sub(Q[1], Q[0])) / 3; return { b: [Q[0], add(Q[0], mul(t1, d)), add(Q[1], mul(t2, d)), Q[1]], er: 0, sp: 0 }; }
+    let u = chordU(Q), b = genBez(Q, u, t1, t2), [er, sp] = maxErr(Q, EQ, b, u);
+    if (er >= 1 && er < 9) for (let k = 0; k < 6; k++) { u = reparam(Q, b, u); b = genBez(Q, u, t1, t2); [er, sp] = maxErr(Q, EQ, b, u); if (er < 1) break; }
+    return { b, er, sp };
+  }
+  function fitCubic(P, E, i0, i1, t1, t2, out, depth) {
+    const r = fitOnce(P, E, i0, i1, t1, t2);
+    if (r.er < 1 || i1 - i0 < 2 || depth > 40) { out.push({ b: r.b, i0, i1 }); return; }
+    const s = i0 + Math.max(1, Math.min(i1 - i0 - 1, r.sp)), tc = norm(sub(P[s - 1], P[s + 1]));
+    fitCubic(P, E, i0, s, t1, tc, out, depth + 1);
+    fitCubic(P, E, s, i1, mul(tc, -1), t2, out, depth + 1);
+  }
+  const tanOut = b => len(sub(b[1], b[0])) > 1e-6 ? norm(sub(b[1], b[0])) : norm(sub(b[3], b[0]));
+  const tanIn = b => len(sub(b[2], b[3])) > 1e-6 ? norm(sub(b[2], b[3])) : norm(sub(b[0], b[3]));
+  // 점 합치기: 이웃 두 구간을 하나로 맞춰 허용 오차×fac 안이면 합침 (끝 접선 유지 → 매끄러움 유지)
+  function mergeSegs(P, E, segs, fac2) {
+    let k = 0;
+    while (k < segs.length - 1) {
+      const a = segs[k], c = segs[k + 1], r = fitOnce(P, E, a.i0, c.i1, tanOut(a.b), tanIn(c.b));
+      if (r.er <= fac2) segs.splice(k, 2, { b: r.b, i0: a.i0, i1: c.i1 }); else k++;
+    }
+    return segs;
   }
   // 열린 꺾은선 RDP
   function rdpOpen(P, eps) {
@@ -211,31 +228,58 @@ const Core = (() => {
     return { p: q, edge, mark };
   }
   // 윤곽 하나 → 구간들 [{l:[끝점]} | {c:[c1,c2,끝점]}], 시작점
-  function fitLoop(L, tol, curve) {
-    const { p, edge, mark } = L, n = p.length, e2 = tol * tol, segs = [];
+  // L.tol[i] = 점별 허용 오차(px), L.ten[i] = 점별 장력(−0.3~+0.3), m = 오차 배율(목표 점 수용), fac2 = 합치기 허용(0 = 끔)
+  function fitLoop(L, m, curve, fac2) {
+    const { p, edge, mark } = L, n = p.length, segs = [];
+    const E = L.tol.map(t => Math.max(1e-4, (t * m) ** 2));
     let br = []; for (let i = 0; i < n; i++) if (mark[i]) br.push(i);
-    if (!curve) {   // 직선 모드: 꺾은선 단순화
-      const r = simplify(p, tol); for (let i = 1; i < r.length; i++) segs.push({ l: r[i] });
+    if (!curve) {   // 직선 모드: 꺾은선 단순화(전체 오차)
+      const r = simplify(p, L.tol0 * m); for (let i = 1; i < r.length; i++) segs.push({ l: r[i] });
       segs.push({ l: r[0] });
       return { start: r[0], segs };
     }
+    const emit = (P, EP, T, t1, t2) => {   // P 구간 맞춤 → 합치기 → 장력 → segs
+      const out = []; fitCubic(P, EP, 0, P.length - 1, t1, t2, out, 0);
+      if (fac2 > 0) mergeSegs(P, EP, out, fac2);
+      for (const s of out) {
+        const k = 1 + T[(s.i0 + s.i1) >> 1], b = s.b;
+        segs.push({ c: [add(b[0], mul(sub(b[1], b[0]), k)), add(b[3], mul(sub(b[2], b[3]), k)), b[3]] });
+      }
+    };
     if (!br.length) {   // 모서리 없는 닫힌 곡선
-      const ring = p.concat([p[0]]), t = norm(sub(p[Math.min(3, n - 1)], p[n - Math.min(3, n - 1)])), out = [];
-      fitCubic(ring, t, mul(t, -1), e2, out, 0);
-      out.forEach(b => segs.push({ c: [b[1], b[2], b[3]] }));
+      const ring = p.concat([p[0]]), k3 = Math.min(3, n - 1), t = norm(sub(p[k3], p[n - k3]));
+      emit(ring, E.concat([E[0]]), L.ten.concat([L.ten[0]]), t, mul(t, -1));
       return { start: p[0], segs };
     }
     for (let k = 0; k < br.length; k++) {
-      const a = br[k], b = br[(k + 1) % br.length], piece = [];
-      for (let i = a; ; i = (i + 1) % n) { piece.push(p[i]); if (i === b && piece.length > 1) break; if (piece.length > n + 1) break; }
-      if (piece.length < 2) continue;
-      let allEdge = true; for (let i = a; ; i = (i + 1) % n) { if (!edge[i]) { allEdge = false; break; } if (i === b) break; }
-      if (allEdge || piece.length < 4) { rdpOpen(piece, .5).slice(1).forEach(q => segs.push({ l: q })); continue; }
-      const k3 = Math.min(3, piece.length - 1), out = [];
-      fitCubic(piece, norm(sub(piece[k3], piece[0])), norm(sub(piece[piece.length - 1 - k3], piece[piece.length - 1])), e2, out, 0);
-      out.forEach(bz => segs.push({ c: [bz[1], bz[2], bz[3]] }));
+      const a = br[k], b = br[(k + 1) % br.length], idx = [];
+      for (let i = a; ; i = (i + 1) % n) { idx.push(i); if (i === b && idx.length > 1) break; if (idx.length > n + 1) break; }
+      if (idx.length < 2) continue;
+      const piece = idx.map(i => p[i]);
+      if (idx.every(i => edge[i]) || piece.length < 4) { rdpOpen(piece, .5).slice(1).forEach(q => segs.push({ l: q })); continue; }
+      const k3 = Math.min(3, piece.length - 1);
+      emit(piece, idx.map(i => E[i]), idx.map(i => L.ten[i]), norm(sub(piece[k3], piece[0])), norm(sub(piece[piece.length - 1 - k3], piece[piece.length - 1])));
     }
     return { start: p[br[0]], segs };
+  }
+  // 점별 허용 오차·장력: 브러시 구역(o.zg, o.zones) + 곡률 배분(o.alloc 0~1)
+  function loopParams(L, w, h, o) {
+    const { p } = L, n = p.length, tol = new Float32Array(n), ten = new Float32Array(n), zg = o.zg;
+    for (let i = 0; i < n; i++) {
+      let z = 0;
+      if (zg) { const gx = Math.min(zg.gw - 1, Math.max(0, Math.floor(p[i][0] * zg.gw / w))), gy = Math.min(zg.gh - 1, Math.max(0, Math.floor(p[i][1] * zg.gh / h))); z = zg.g[gy * zg.gw + gx]; }
+      const Z = z && o.zones && o.zones[z];
+      tol[i] = Z ? Z.tol : o.simplify; ten[i] = Z ? Z.tension : (o.tension || 0);
+    }
+    if (o.alloc > 0 && n > 20) {   // 곡률 큰 곳 = 오차 작게(점 촘촘), 완만한 곳 = 오차 크게
+      const far = (i, st) => { let k = 1, q = p[(i + st + n) % n]; while (k < 14 && len(sub(q, p[i])) < 5) { k++; q = p[((i + st * k) % n + n) % n]; } return q; };
+      const cv = new Float32Array(n); for (let i = 0; i < n; i++) cv[i] = 1 - dot(norm(sub(p[i], far(i, -1))), norm(sub(far(i, 1), p[i])));
+      const med = Float32Array.from(cv).sort()[n >> 1] + 2e-3;
+      let f = Array.from(cv, c => Math.min(3, Math.max(0.6, ((med) / (c + 2e-3)) ** (0.6 * o.alloc))));
+      for (let pass = 0; pass < 3; pass++) f = f.map((v, i) => (f[(i - 2 + n) % n] + f[(i - 1 + n) % n] + v + f[(i + 1) % n] + f[(i + 2) % n]) / 5);
+      for (let i = 0; i < n; i++) tol[i] *= f[i];
+    }
+    return { ...L, tol: Array.from(tol), ten: Array.from(ten), tol0: o.simplify };
   }
   // 맞춘 윤곽들 → SVG d · 점 수 · 앵커 좌표(원본 픽셀)
   function toPath(fits, s) {
@@ -251,20 +295,29 @@ const Core = (() => {
     }
     return { d, nodes, paths: fits.length, anchors };
   }
-  // bin → 외곽선. o.target(>0) = 점 수가 이 값 이하가 되는 가장 작은 허용 오차를 찾음
+  // bin → 벡터. o.target(>0) = 점 수가 이 값 이하가 되는 가장 작은 오차 배율을 찾음
   function outline(bin, w, h, o) {
-    const loops = trace(bin, w, h, Math.max(8, Math.round(4 * o.simplify + 8))).map(l => prepLoop(l, w, h, o.corner || 0));   // 오차보다 작은 점 같은 고리는 버림
-    const run = tol => toPath(loops.map(L => fitLoop(L, tol, o.curve)), o.scale);
-    let tol = o.simplify, r = run(tol);
-    if (o.target > 0 && r.nodes > o.target) {
-      let lo = tol, hi = 64, best = null;
-      for (let k = 0; k < 12; k++) { const m = (lo + hi) / 2, x = run(m); if (x.nodes <= o.target) { best = x; hi = m; tol = m; } else lo = m; }
-      r = best || run(hi); if (!best) tol = hi;
+    const pre = trace(bin, w, h, Math.max(8, Math.round(4 * o.simplify + 8))).map(l => prepLoop(l, w, h, o.corner || 0));   // 오차보다 작은 점 같은 고리는 버림
+    const loops = pre.map(L => loopParams(L, w, h, o));
+    const fac2 = o.merge > 0 ? (1 + o.merge) ** 2 : 0;
+    const run = (m, LS = loops) => toPath(LS.map(L => fitLoop(L, m, o.curve, fac2)), o.scale);
+    let m = 1, r = run(1);
+    if (o.alloc > 0 && o.curve && !(o.target > 0)) {   // 곡률 배분 = 점 수는 그대로 두고 배치만 바꿈 → 배분 없을 때 점 수에 맞춤
+      const goal = run(1, pre.map(L => loopParams(L, w, h, { ...o, alloc: 0 }))).nodes;
+      let lo = .5, hi = 4;
+      for (let k = 0; k < 7; k++) { const mid = Math.sqrt(lo * hi), x = run(mid); if (x.nodes <= goal) { hi = mid; r = x; m = mid; } else lo = mid; }
+      if (r.nodes > goal) { m = hi; r = run(hi); }
     }
-    return { ...r, tol };
+    if (o.target > 0 && r.nodes > o.target) {
+      let lo = 1, hi = 64, best = null;
+      for (let k = 0; k < 12; k++) { const x = run((lo + hi) / 2); if (x.nodes <= o.target) { best = x; hi = (lo + hi) / 2; } else lo = (lo + hi) / 2; }
+      m = hi; r = best || run(hi);
+    }
+    return { ...r, tol: o.simplify * m, mult: m };
   }
   // 전체: 확률 마스크(0..1, w×h) → {d, nodes, paths, anchors, tol, bin, cut}
-  // o: threshold, smooth, simplify(허용 오차 px), curve, corner, target, speck, hole, people, offset(작업 px), cut(작업 px, 0=없음), scale
+  // o: threshold, smooth, simplify(허용 오차 px), curve, corner, target, merge(0~1, 0=끔), alloc(0~1), tension(−0.3~0.3),
+  //    zg({g,gw,gh} 브러시 구역 격자, 0/1/2), zones([, {tol, tension}, {tol, tension}]), speck, hole, people, offset, cut, scale
   function vectorize(prob, w, h, o) {
     const b = blur(prob, w, h, o.smooth);
     let bin = new Uint8Array(w * h);
@@ -274,7 +327,7 @@ const Core = (() => {
     const r = { ...outline(bin, w, h, o), bin, cut: '' };
     if (o.cut > 0) {
       const c = offset(cleanup(Uint8Array.from(bin), w, h, { speck: 0, people: 0, hole: Infinity }), w, h, o.cut);
-      r.cut = outline(c, w, h, { ...o, corner: 0, target: 0, simplify: Math.max(o.simplify, 1) }).d;
+      r.cut = outline(c, w, h, { ...o, corner: 0, target: 0, alloc: 0, zg: null, tension: 0, simplify: Math.max(o.simplify, 1) }).d;
     }
     return r;
   }

@@ -40,6 +40,10 @@ main{flex:1;display:grid;grid-template-columns:230px minmax(0,1fr) 300px;min-hei
 #busy{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:rgba(38,38,38,.92);border:1px solid #555;padding:5px 12px;font-size:12px;display:none}
 #pts{position:absolute;left:10px;top:10px;background:rgba(38,38,38,.88);border:1px solid #444;padding:4px 10px;font-size:13px;font-weight:700;display:none;font-variant-numeric:tabular-nums}
 #pts small{font-weight:400;color:var(--sub);margin-left:6px}
+#tools{position:absolute;right:10px;top:10px;display:flex;gap:2px}
+#tools button{height:24px;font-size:11px;padding:0 10px}
+#tools [data-t="1"].on{box-shadow:inset 0 -3px 0 #4a8fe0}#tools [data-t="2"].on{box-shadow:inset 0 -3px 0 #f2c94c}
+#cv.paint{cursor:none}
 #views{position:absolute;left:10px;bottom:10px;display:flex;gap:2px}
 #views button{height:24px;font-size:11px;padding:0 10px}
 #right{border-left:1px solid #111;display:flex;flex-direction:column;min-height:0}
@@ -102,8 +106,15 @@ input[type=range]::-moz-range-thumb{width:9px;height:15px;border-radius:0;backgr
     <div id="empty">사진을 끌어다 놓기</div>
     <div id="busy"></div>
     <div id="pts"></div>
+    <div id="tools">
+      <button data-t="view" class="b ov on" title="보기 (V)">보기</button>
+      <button data-t="1" class="b ov" title="브러시 A (A) · 칠한 곳은 A 허용 오차·장력">A</button>
+      <button data-t="2" class="b ov" title="브러시 B (B) · 칠한 곳은 B 허용 오차·장력">B</button>
+      <button data-t="0" class="b ov" title="지우개 (E)">지우개</button>
+      <button id="zclear" class="b ov" title="이 사진의 브러시 모두 지우기">비우기</button>
+    </div>
     <div id="views">
-      <button data-v="line" class="b ov on" title="외곽선 보기 (1)">외곽선</button>
+      <button data-v="line" class="b ov on" title="벡터 보기 (1)">벡터</button>
       <button data-v="cut" class="b ov" title="누끼 보기 (2)">누끼</button>
       <button data-v="mask" class="b ov" title="마스크 보기 (3)">마스크</button>
     </div>
@@ -124,7 +135,7 @@ input[type=range]::-moz-range-thumb{width:9px;height:15px;border-radius:0;backgr
     </div>
     <div id="bottom">
       <div id="stats"></div>
-      <button id="sSvg" class="b red main" disabled title="선택한 사진의 외곽선 SVG 저장">SVG 저장</button>
+      <button id="sSvg" class="b red main" disabled title="선택한 사진의 벡터 SVG 저장">SVG 저장</button>
       <div class="two"><button id="sPng" class="b" disabled title="배경을 지운 PNG">투명 PNG</button><button id="sMask" class="b" disabled title="흑백 마스크 PNG">마스크 PNG</button></div>
       <button id="sZip" class="b" disabled title="처리된 모든 사진의 SVG·PNG·마스크를 ZIP 하나로">전체 ZIP</button>
     </div>
@@ -170,15 +181,25 @@ document.getElementById('bevel').textContent =
 const GROUPS = [
   ['경계', [
     { k: 'thr', l: '경계 기준', t: 'range', min: .05, max: .95, s: .05, d: .5, f: 2, tip: '낮추면 잔머리·반투명 부분까지 포함, 높이면 안쪽을 땀' },
-    { k: 'offset', l: '확장·축소', t: 'range', min: -10, max: 10, s: 1, d: 0, u: 'px', tip: '외곽선을 바깥(+)·안쪽(−)으로 이동 (원본 픽셀)' },
+    { k: 'offset', l: '확장·축소', t: 'range', min: -10, max: 10, s: 1, d: 0, u: 'px', tip: '벡터를 바깥(+)·안쪽(−)으로 이동 (원본 픽셀)' },
     { k: 'feather', l: '페더', t: 'range', min: 0, max: 10, s: 1, d: 1, u: 'px', tip: 'PNG·마스크 경계를 흐리는 정도' },
   ]],
   ['곡선', [
     { k: 'smooth', l: '부드럽게', t: 'range', min: 0, max: 12, s: 1, d: 2, u: 'px', tip: '외곽의 잔물결 제거' },
     { k: 'simplify', l: '허용 오차', t: 'range', min: .3, max: 6, s: .1, d: 1, f: 1, u: 'px', tip: '곡선이 원래 윤곽에서 벗어나도 되는 최대 거리(작업 해상도 px). 클수록 점이 적고, 작을수록 정확' },
     { k: 'target', l: '목표 점 수', t: 'range', min: 0, max: 1000, s: 10, d: 0, z: '끔', tip: '점 수가 이 값 이하가 되도록 허용 오차를 자동으로 키움 (0 = 끔)' },
+    { k: 'merge', l: '점 합치기', t: 'range', min: 0, max: 100, s: 1, d: 5, z: '끔', u: '%', tip: '이웃한 곡선 두 개를 하나로 합쳐도 허용 오차의 (100+이 값)% 안이면 합침. 1~5% = 정확도 거의 그대로 점만 감소' },
+    { k: 'alloc', l: '곡률 배분', t: 'range', min: 0, max: 100, s: 5, d: 0, z: '끔', tip: '점 수는 그대로 두고, 많이 휘는 곳(머리카락·귀)에 점을 몰아주고 완만한 곳(팔·몸통)은 줄임' },
+    { k: 'tension', l: '장력', t: 'range', min: -30, max: 30, s: 1, d: 0, u: '%', tip: '핸들 길이 조절. + = 둥글고 통통하게, − = 팽팽하고 각지게 (그만큼 원래 윤곽에서 벗어남)' },
     { k: 'corner', l: '모서리 보존', t: 'range', min: 0, max: 100, s: 5, d: 0, tip: '모자 챙·어깨 같은 꺾인 곳을 각지게 유지 (0 = 끔)' },
     { k: 'curve', l: '연결', t: 'select', d: 'bezier', o: [['bezier', '베지어 곡선'], ['line', '직선']] },
+  ]],
+  ['부분 브러시', [
+    { k: 'zAtol', l: 'A 허용 오차', t: 'range', min: .2, max: 6, s: .1, d: .5, f: 1, u: 'px', tip: '브러시 A로 칠한 곳의 허용 오차' },
+    { k: 'zAten', l: 'A 장력', t: 'range', min: -30, max: 30, s: 1, d: 0, u: '%' },
+    { k: 'zBtol', l: 'B 허용 오차', t: 'range', min: .2, max: 6, s: .1, d: 3, f: 1, u: 'px', tip: '브러시 B로 칠한 곳의 허용 오차' },
+    { k: 'zBten', l: 'B 장력', t: 'range', min: -30, max: 30, s: 1, d: 0, u: '%' },
+    { k: 'bsize', l: '브러시 크기', t: 'range', min: 5, max: 300, s: 5, d: 60, u: 'px', tip: '화면 기준 지름. [ ] 키로 조절' },
   ]],
   ['정리', [
     { k: 'speck', l: '조각 제거', t: 'range', min: 0, max: 20, s: .5, d: 2, f: 1, u: '%', tip: '가장 큰 덩어리 대비 이 크기보다 작은 조각 제거' },
@@ -191,7 +212,7 @@ const GROUPS = [
     { k: 'fillColor', l: '채움 색', t: 'color', d: '#000000' },
     { k: 'strokeColor', l: '선 색', t: 'color', d: '#000000' },
     { k: 'strokeW', l: '선 굵기', t: 'range', min: .5, max: 20, s: .5, d: 2, f: 1, u: 'pt' },
-    { k: 'cut', l: '칼선 여백', t: 'range', min: 0, max: 100, s: 1, d: 0, u: 'px', tip: '외곽에서 이만큼 띄운 칼선 패스를 따로 추가 (0 = 없음, 원본 픽셀)' },
+    { k: 'cut', l: '칼선 여백', t: 'range', min: 0, max: 100, s: 1, d: 0, u: 'px', tip: '벡터에서 이만큼 띄운 칼선 패스를 따로 추가 (0 = 없음, 원본 픽셀)' },
     { k: 'cutColor', l: '칼선 색', t: 'color', d: '#ff0000' },
   ]],
   ['PNG 출력', [
@@ -201,7 +222,7 @@ const GROUPS = [
   ['파일', [
     { k: 'prefix', l: '앞 글자', t: 'text', d: '', tip: '저장 파일 이름 앞에 붙임' },
     { k: 'suffix', l: '뒤 글자', t: 'text', d: '', tip: '저장 파일 이름 뒤(_outline 등 앞)에 붙임' },
-    { k: 'res', l: '작업 해상도', t: 'select', d: '2048', o: [['1024', '1024px'], ['2048', '2048px'], ['3072', '3072px']], tip: '외곽선 계산 해상도. 높을수록 정밀·느림' },
+    { k: 'res', l: '작업 해상도', t: 'select', d: '2048', o: [['1024', '1024px'], ['2048', '2048px'], ['3072', '3072px']], tip: '벡터 계산 해상도. 높을수록 정밀·느림' },
   ]],
   ['미리보기', [
     { k: 'lineColor', l: '선 색', t: 'color', d: '#ff3b30' },
@@ -230,20 +251,25 @@ let presetName = (LASTOK && LAST.name) || '기본';
 let userPresets = store.get('vman.presets', []);
 
 /* ================= 되돌리기 (Ctrl+Z / Ctrl+Shift+Z·Ctrl+Y, 최대 50개) ================= */
-const HMAX = 50; let hist = [], fut = [], pend = null, ht = 0;
+const HMAX = 50; let hist = [], fut = [], pend = null, ht = 0;   // 항목: {k:'s', js} 설정 / {k:'b', it, g} 브러시
 const snapNow = () => JSON.stringify({ S, n: presetName });
 function snap() { // 바꾸기 직전에 호출. 0.4초 안의 연속 변경은 하나로
   if (pend === null) pend = snapNow();
   clearTimeout(ht); ht = setTimeout(commitHist, 400);
 }
+function pushHist(e) { hist.push(e); if (hist.length > HMAX) hist.shift(); fut = []; }
 function commitHist() {
   clearTimeout(ht);
-  if (pend !== null && pend !== snapNow()) { hist.push(pend); if (hist.length > HMAX) hist.shift(); fut = []; }
+  if (pend !== null && pend !== snapNow()) pushHist({ k: 's', js: pend });
   pend = null;
 }
 function restore(js) { const o = JSON.parse(js); S = { ...DEF, ...o.S }; presetName = o.n; syncUI(); store.set('vman.last', { name: presetName, v: S, ver: 3 }); if (cur) cur.alpha = null; update(); }
-function undo() { commitHist(); if (!hist.length) return flash('되돌릴 것 없음'); fut.push(snapNow()); restore(hist.pop()); flash(`되돌리기 · 남은 ${hist.length}`); }
-function redo() { commitHist(); if (!fut.length) return flash('다시 할 것 없음'); hist.push(snapNow()); restore(fut.pop()); flash(`다시 실행 · 남은 ${fut.length}`); }
+function swap(e, to) {   // e 를 적용하고, 되돌릴 반대 항목을 to 에 넣음
+  if (e.k === 's') { to.push({ k: 's', js: snapNow() }); restore(e.js); }
+  else { to.push({ k: 'b', it: e.it, g: e.it.zg.g.slice() }); e.it.zg.g.set(e.g); zgCount(e.it); if (cur && cur.it === e.it) update(); }
+}
+function undo() { commitHist(); if (!hist.length) return flash('되돌릴 것 없음'); swap(hist.pop(), fut); flash(`되돌리기 · 남은 ${hist.length}`); }
+function redo() { commitHist(); if (!fut.length) return flash('다시 할 것 없음'); swap(fut.pop(), hist); flash(`다시 실행 · 남은 ${fut.length}`); }
 let ft = 0;
 function flash(t) { busy(t); clearTimeout(ft); ft = setTimeout(() => { if ($('busy').textContent === t) busy(''); }, 900); }
 
@@ -282,7 +308,7 @@ function syncUI() {
   $('stage').className = 'bg-' + S.bg + ($('stage').classList.contains('drag') ? ' drag' : '');
   presetLabel();
 }
-const PREVIEW_ONLY = ['lineColor', 'lineW', 'bg', 'showPts'], OUTPUT_ONLY = ['svgMode', 'fillColor', 'strokeColor', 'strokeW', 'cutColor', 'pngScale', 'maskInv', 'prefix', 'suffix', 'feather'];
+const PREVIEW_ONLY = ['lineColor', 'lineW', 'bg', 'showPts', 'bsize'], OUTPUT_ONLY = ['svgMode', 'fillColor', 'strokeColor', 'strokeW', 'cutColor', 'pngScale', 'maskInv', 'prefix', 'suffix', 'feather'];
 let tm = 0;
 function changed(k) {
   const s = SPEC[k]; if (s && s.t === 'range') $('v_' + k).textContent = fmt(s, S[k]);
@@ -445,8 +471,10 @@ async function infer(bmp) {
 }
 
 /* ================= 마스크 → 결과 ================= */
-function opts(scale) {
+function opts(scale, it) {
   return { threshold: S.thr, smooth: S.smooth, simplify: S.simplify, target: S.target, curve: S.curve === 'bezier', corner: S.corner,
+           merge: S.merge / 100, alloc: S.alloc / 100, tension: S.tension / 100,
+           zg: it && it.zg && it.zgN ? it.zg : null, zones: [null, { tol: S.zAtol, tension: S.zAten / 100 }, { tol: S.zBtol, tension: S.zBten / 100 }],
            speck: S.speck / 100, hole: S.holeAll ? Infinity : S.hole / 100, people: +S.people,
            offset: Math.round(S.offset / scale), cut: S.cut ? Math.max(1, Math.round(S.cut / scale)) : 0, scale };
 }
@@ -491,7 +519,7 @@ function buildSVG(r, W, H) {
 const fname = (n, tail) => (S.prefix || '') + n.replace(/\.[^.]+$/, '') + (S.suffix || '') + tail;
 async function renderFiles(it, bmp) {
   const W = bmp.width, H = bmp.height, [ww, wh] = workSize(W, H), sc = W / ww;
-  const prob = probAt(it.mask, ww, wh), r = Core.vectorize(prob, ww, wh, opts(sc));
+  const prob = probAt(it.mask, ww, wh), r = Core.vectorize(prob, ww, wh, opts(sc, it));
   const al = alphaOf(prob, r.bin, ww, wh, sc), k = +S.pngScale, PW = Math.max(1, Math.round(W * k)), PH = Math.max(1, Math.round(H * k));
   const cut = new OffscreenCanvas(PW, PH), g = cut.getContext('2d');
   g.imageSmoothingQuality = 'high'; g.drawImage(bmp, 0, 0, PW, PH); g.globalCompositeOperation = 'destination-in'; g.drawImage(alphaCanvas(al, ww, wh), 0, 0, PW, PH);
@@ -550,7 +578,7 @@ function update() {
   const W = cur.bmp.width, H = cur.bmp.height, [ww, wh] = workSize(W, H), key = ww + 'x' + wh;
   if (cur.key !== key) { cur.prob = probAt(cur.it.mask, ww, wh); cur.key = key; cur.ww = ww; cur.wh = wh; }
   const t = performance.now();
-  res = Core.vectorize(cur.prob, ww, wh, opts(W / ww));
+  res = Core.vectorize(cur.prob, ww, wh, opts(W / ww, cur.it));
   res.path = new Path2D(res.d); res.cutPath = res.cut ? new Path2D(res.cut) : null; cur.alpha = null;
   $('stats').textContent = `${W}×${H} · 작업 ${ww}×${wh} · ${(performance.now() - t).toFixed(0)}ms`;
   $('pts').innerHTML = `점 ${res.nodes.toLocaleString()}개<small>패스 ${res.paths} · 오차 ${res.tol.toFixed(1)}px${S.target && res.tol > S.simplify ? ' (자동)' : ''}</small>`;
@@ -564,6 +592,7 @@ function draw() {
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, Wc, Hc);
   if (!cur) return;
   const W = cur.bmp.width, H = cur.bmp.height, s = Math.min((Wc - 24) / W, (Hc - 60) / H), ox = (Wc - W * s) / 2, oy = (Hc - 36 - H * s) / 2;
+  cur.vw = { ox, oy, s };
   const ready = cur.it.mask && res;
   if (!ready || view === 'line') {
     g.drawImage(cur.bmp, ox, oy, W * s, H * s);
@@ -573,11 +602,13 @@ function draw() {
     g.save(); g.clip(res.path, 'evenodd'); g.drawImage(cur.bmp, 0, 0); g.restore();
     g.lineWidth = S.lineW / s; g.strokeStyle = S.lineColor; g.lineJoin = 'round'; g.stroke(res.path);
     if (res.cutPath) { g.setLineDash([6 / s, 4 / s]); g.strokeStyle = S.cutColor; g.stroke(res.cutPath); g.setLineDash([]); }
+    if (cur.it.zgN || tool !== 'view') drawZones(g);
     if (S.showPts) {   // 고정점: 흰 사각 + 선 색 테두리
       const a = res.anchors, q = 3.5 / s; g.fillStyle = '#fff'; g.strokeStyle = S.lineColor; g.lineWidth = 1 / s;
       for (let i = 0; i < a.length; i += 2) { g.fillRect(a[i] - q, a[i + 1] - q, 2 * q, 2 * q); g.strokeRect(a[i] - q, a[i + 1] - q, 2 * q, 2 * q); }
     }
     g.restore();
+    if (tool !== 'view' && mouse) { g.beginPath(); g.arc(mouse[0], mouse[1], S.bsize / 2, 0, 7); g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.stroke(); g.strokeStyle = '#000'; g.lineWidth = .5; g.stroke(); }
     return;
   }
   if (!cur.alpha) cur.alpha = alphaOf(cur.prob, res.bin, cur.ww, cur.wh, W / cur.ww);
@@ -587,6 +618,63 @@ function draw() {
     g.drawImage(c, ox, oy, W * s, H * s);
   } else g.drawImage(alphaCanvas(cur.alpha, cur.ww, cur.wh, true, S.maskInv), ox, oy, W * s, H * s);
 }
+/* ================= 부분 브러시 ================= */
+let tool = 'view', mouse = null, painting = null;
+function ensureZg(it, W, H) {
+  if (!it.zg) { const k = 512 / Math.max(W, H); it.zg = { gw: Math.max(1, Math.round(W * k)), gh: Math.max(1, Math.round(H * k)) }; it.zg.g = new Uint8Array(it.zg.gw * it.zg.gh); it.zgN = 0; }
+  return it.zg;
+}
+function zgCount(it) { let n = 0; for (const v of it.zg.g) if (v) n++; it.zgN = n; }
+const ZCOL = [null, [74, 143, 224], [242, 201, 76]];
+function drawZones(g) {   // 이미지 좌표계(translate·scale 된 상태)에서 호출
+  const it = cur.it, zg = ensureZg(it, cur.bmp.width, cur.bmp.height);
+  if (!it.zc || it.zcDirty) {
+    const c = it.zc || new OffscreenCanvas(zg.gw, zg.gh), cg = c.getContext('2d'), id = cg.createImageData(zg.gw, zg.gh);
+    for (let i = 0; i < zg.g.length; i++) { const z = zg.g[i]; if (!z) continue; id.data.set([...ZCOL[z], 95], i * 4); }
+    cg.putImageData(id, 0, 0); it.zc = c; it.zcDirty = false;
+  }
+  g.save(); g.imageSmoothingEnabled = true; g.drawImage(it.zc, 0, 0, cur.bmp.width, cur.bmp.height); g.restore();
+}
+function paintAt(x, y) {
+  const it = cur.it, W = cur.bmp.width, H = cur.bmp.height, zg = ensureZg(it, W, H), v = cur.vw;
+  const ix = (x - v.ox) / v.s, iy = (y - v.oy) / v.s, k = zg.gw / W, gx = ix * k, gy = iy * k, r = S.bsize / 2 / v.s * k, val = +tool;
+  for (let yy = Math.max(0, Math.floor(gy - r)); yy <= Math.min(zg.gh - 1, Math.ceil(gy + r)); yy++)
+    for (let xx = Math.max(0, Math.floor(gx - r)); xx <= Math.min(zg.gw - 1, Math.ceil(gx + r)); xx++)
+      if ((xx + .5 - gx) ** 2 + (yy + .5 - gy) ** 2 <= r * r) zg.g[yy * zg.gw + xx] = val;
+  it.zcDirty = true;
+}
+function setTool(t) {
+  tool = t; [...$('tools').querySelectorAll('[data-t]')].forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  $('cv').classList.toggle('paint', t !== 'view'); if (t !== 'view' && view !== 'line') setView('line'); else draw();
+}
+$('tools').onclick = async e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.id === 'zclear') {
+    if (!cur || !cur.it.zgN) return;
+    if (await popup('이 사진의 브러시를 모두 지울까요?', [['cancel', '취소'], ['ok', '지우기', 'red']]) !== 'ok') return;
+    pushHist({ k: 'b', it: cur.it, g: cur.it.zg.g.slice() }); cur.it.zg.g.fill(0); cur.it.zgN = 0; cur.it.zcDirty = true; update(); return;
+  }
+  setTool(b.dataset.t);
+};
+const cvPos = e => { const r = $('cv').getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+$('cv').addEventListener('pointerdown', e => {
+  if (tool === 'view' || !cur || !cur.it.mask || !cur.vw) return;
+  $('cv').setPointerCapture(e.pointerId); commitHist();
+  const zg = ensureZg(cur.it, cur.bmp.width, cur.bmp.height); painting = zg.g.slice();
+  mouse = cvPos(e); paintAt(...mouse); draw();
+});
+$('cv').addEventListener('pointermove', e => {
+  mouse = cvPos(e);
+  if (painting) paintAt(...mouse);
+  if (tool !== 'view') draw();
+});
+$('cv').addEventListener('pointerleave', () => { mouse = null; if (tool !== 'view') draw(); });
+const endPaint = () => {
+  if (!painting) return;
+  const it = cur.it; pushHist({ k: 'b', it, g: painting }); painting = null; zgCount(it); update();
+};
+$('cv').addEventListener('pointerup', endPaint); $('cv').addEventListener('pointercancel', endPaint);
+
 function busy(t) { $('busy').textContent = t; $('busy').style.display = t ? 'block' : 'none'; }
 
 /* ================= 저장 ================= */
@@ -597,7 +685,7 @@ function save(blob, name) {
 async function saveOne(kind) {
   if (!cur || !cur.it.mask) return;
   busy('저장 파일 만드는 중…');
-  try { const f = await renderFiles(cur.it, cur.bmp); save(f[kind], fname(cur.it.name, { svg: '_outline.svg', png: '_cutout.png', mask: '_mask.png' }[kind])); }
+  try { const f = await renderFiles(cur.it, cur.bmp); save(f[kind], fname(cur.it.name, { svg: '_vector.svg', png: '_cutout.png', mask: '_mask.png' }[kind])); }
   catch (e) { popup('저장하지 못했습니다.\n' + (e.message || e), [['ok', '확인']]); }
   finally { busy(''); }
 }
@@ -614,7 +702,7 @@ async function saveZip() {
       busy(`ZIP 만드는 중 ${k + 1} / ${done.length}`);
       const it = done[k], bmp = await createImageBitmap(it.file), f = await renderFiles(it, bmp);
       bmp.close();
-      zip.file(fname(it.name, '_outline.svg'), f.svg); zip.file(fname(it.name, '_cutout.png'), f.png); zip.file(fname(it.name, '_mask.png'), f.mask);
+      zip.file(fname(it.name, '_vector.svg'), f.svg); zip.file(fname(it.name, '_cutout.png'), f.png); zip.file(fname(it.name, '_mask.png'), f.mask);
     }
     save(await zip.generateAsync({ type: 'blob' }), 'vectorman.zip');
   } catch (e) { popup('ZIP을 만들지 못했습니다.\n' + (e.message || e), [['ok', '확인']]); }
@@ -647,6 +735,10 @@ document.addEventListener('keydown', e => {
   }
   if (e.target.matches('input[type=text]')) return;
   const v = { 1: 'line', 2: 'cut', 3: 'mask' }[e.key]; if (v) setView(v);
+  if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+    const tk = { v: 'view', a: '1', b: '2', e: '0' }[e.key.toLowerCase()]; if (tk) setTool(tk);
+    if (e.key === '[' || e.key === ']') { snap(); S.bsize = Math.max(5, Math.min(300, S.bsize + (e.key === ']' ? 10 : -10))); syncUI(); changed('bsize'); }
+  }
   if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && items.length && !e.target.matches('select,input')) { e.preventDefault(); select(Math.max(0, Math.min(items.length - 1, sel + (e.key === 'ArrowDown' ? 1 : -1)))); }
 });
 $('pickModel').onclick = () => $('fmodel').click();
