@@ -78,13 +78,20 @@ async def main():
     await pg.screenshot(path=OUT('5_brush.png'))
     a3 = await stroke(alt=True)
     await pg.click('#tools [data-m="-"]'); a4 = await stroke(); a5 = await stroke()
-    await pg.click('#zclear'); await pg.wait_for_timeout(500); a6 = (await pg.text_content('#pts')).split('개')[0]
+    await pg.click('#zclear'); await pg.wait_for_timeout(500); a6 = (await pg.text_content('#pts')).split('개')[0] + ' 표시칸 ' + str(await pg.evaluate("document.querySelector('#cv') && 0"))
     await pg.click('#tools [data-t="view"]'); await pg.mouse.click(700, 400)
     await pg.keyboard.press('Control+z'); await pg.wait_for_timeout(500); a7 = (await pg.text_content('#pts')).split('개')[0]
     print('11 brush:', p0, '| +', a1, '| + 누적', a2, '| 칸', hv, '| Alt', a3, '| −', a4, '| − 누적', a5, '| 전체 지우기', a6, '| Ctrl+Z', a7)
     await pg.keyboard.press('Control+Shift+z'); await pg.wait_for_timeout(300)
     async with pg.expect_download() as d: await pg.click('#sSvg')
     dl = await d.value; print('12 svg name:', dl.suggested_filename)
+    # 목록 삭제: Del → 1개, Ctrl+Z → 2개, 오른쪽 메뉴 삭제
+    await pg.click('.it >> nth=1'); await pg.wait_for_timeout(400); await pg.mouse.click(700, 400)
+    await pg.keyboard.press('Delete'); await pg.wait_for_timeout(300); n1 = await pg.locator('.it').count()
+    await pg.keyboard.press('Control+z'); await pg.wait_for_timeout(500); n2 = await pg.locator('.it').count()
+    await pg.click('.it >> nth=0', button='right'); await pg.click('#ctx [data-a=del]'); await pg.wait_for_timeout(300); n3 = await pg.locator('.it').count()
+    await pg.keyboard.press('Control+z'); await pg.wait_for_timeout(500)
+    print('13 list:', n1, '→ undo', n2, '→ 오른쪽 삭제', n3, '→ undo', await pg.locator('.it').count(), '| 선택', await pg.text_content('.it.sel b'))
     # 새로고침 후 마지막 설정 기억
     await pg.reload(); await pg.wait_for_timeout(500)
     print('8 reload:', await pg.text_content('#presetBtn'), await pg.input_value('#k_cut'))

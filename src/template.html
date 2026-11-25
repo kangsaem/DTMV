@@ -78,6 +78,9 @@ input[type=range]::-moz-range-thumb{width:9px;height:15px;border-radius:0;backgr
 #stats{color:var(--sub);font-size:11px;min-height:15px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:4px}
 #bottom .main{height:32px}
+#ctx{position:fixed;z-index:15;display:none;background:#262626;border:1px solid #555;padding:3px;min-width:150px}
+#ctx button{display:flex;justify-content:space-between;width:100%;background:none;border:0;text-align:left;height:26px;font-size:12px}
+#ctx button:hover{background:var(--blue)}#ctx small{color:var(--sub)}
 /* 팝업: DTME Popup — 진회색 · 테두리 #555 · 둥근 6 · 오른쪽 아래 [취소][확인] */
 #pop{position:fixed;inset:0;display:none;place-items:center;background:rgba(0,0,0,.35);z-index:20}
 #pop.open{display:grid}
@@ -116,7 +119,7 @@ input[type=range]::-moz-range-thumb{width:9px;height:15px;border-radius:0;backgr
       <button data-m="+" class="b ov" title="점 많이: 칠한 곳 허용 오차를 줄임">+</button>
       <span class="vsep"></span>
       <button data-t="0" class="b ov" title="지우개 (E) · 칠한 곳을 전체 값으로">지우개</button>
-      <button id="zclear" class="b ov" title="이 사진에 칠한 것 전체 지우기 (Ctrl+Z로 복구)">전체 지우기</button>
+      <button id="zclear" class="b ov" title="칠한 영역 표시만 모두 지우기 · 브러시로 바꾼 결과는 그대로 (결과를 없애려면 지우개)">전체 지우기</button>
     </div>
     <div id="views">
       <button data-v="line" class="b ov on" title="벡터: 사진 위 벡터 선·점 (1)">벡터</button>
@@ -150,6 +153,7 @@ input[type=range]::-moz-range-thumb{width:9px;height:15px;border-radius:0;backgr
 </main>
 <input id="fmodel" type="file" accept=".onnx" hidden>
 <input id="fpreset" type="file" accept=".json,application/json" hidden>
+<div id="ctx"><button data-a="del">목록에서 삭제<small>Del</small></button></div>
 <div id="pop"><div class="box"><div class="msg"></div><input type="text" hidden><div class="btns"></div></div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.1/dist/ort.webgpu.min.js"></script>
@@ -271,7 +275,9 @@ function commitHist() {
 function restore(js) { const o = JSON.parse(js); S = { ...DEF, ...o.S }; presetName = o.n; syncUI(); store.set('vman.last', { name: presetName, v: S, ver: 3 }); if (cur) cur.alpha = null; update(); }
 function swap(e, to) {   // e 를 적용하고, 되돌릴 반대 항목을 to 에 넣음
   if (e.k === 's') { to.push({ k: 's', js: snapNow() }); restore(e.js); }
-  else { to.push(brushSnap(e.it)); e.it.zg.tol.set(e.tol); e.it.zg.ten.set(e.ten); zgCount(e.it); e.it.zcDirty = true; if (cur && cur.it === e.it) update(); }
+  else if (e.k === 'b') { to.push(brushSnap(e.it)); e.it.zg.tol.set(e.tol); e.it.zg.ten.set(e.ten); e.it.zg.show.set(e.show); zgCount(e.it); e.it.zcDirty = true; if (cur && cur.it === e.it) update(); }
+  else if (e.k === 'd') { to.push({ k: 'a', it: e.it }); items.splice(Math.min(e.i, items.length), 0, e.it); if (sel >= e.i) sel++; drawList(); select(items.indexOf(e.it)); }   // 삭제 되돌리기
+  else if (e.k === 'a') { const i = items.indexOf(e.it); if (i >= 0) to.push(removeItem(i)); }
 }
 function undo() { commitHist(); if (!hist.length) return flash('되돌릴 것 없음'); swap(hist.pop(), fut); flash(`되돌리기 · 남은 ${hist.length}`); }
 function redo() { commitHist(); if (!fut.length) return flash('다시 할 것 없음'); swap(fut.pop(), hist); flash(`다시 실행 · 남은 ${fut.length}`); }
@@ -567,6 +573,15 @@ async function doProcess(it) {
   try { const bmp = await createImageBitmap(it.file); it.mask = await infer(bmp); bmp.close(); setSt(it, '완료 · ' + ((performance.now() - t) / 1000).toFixed(1) + '초', 'ok'); }
   catch (e) { console.error(e); setSt(it, '오류: ' + (e.message || e), 'err'); throw e; }
 }
+function removeItem(i) {   // 목록에서 빼기(파일은 그대로). 되돌리기 항목 반환
+  const it = items[i]; items.splice(i, 1);
+  if (cur && cur.it === it) { cur.bmp.close(); cur = null; res = null; $('pts').style.display = 'none'; $('stats').textContent = ''; ['sSvg', 'sPng', 'sMask'].forEach(b => $(b).disabled = true); }
+  if (sel > i) sel--; else if (sel === i) sel = -1;
+  drawList();
+  if (sel < 0 && items.length) select(Math.min(i, items.length - 1)); else draw();
+  return { k: 'd', it, i };
+}
+function deleteSel() { if (sel < 0 || !items[sel]) return; const n = items[sel].name; pushHist(removeItem(sel)); flash(`'${n}' 목록에서 뺌 · Ctrl+Z로 복구`); }
 async function select(i) {
   sel = i; drawList();
   const it = items[i]; busy('불러오는 중…');
@@ -637,10 +652,10 @@ function draw() {
 /* ================= 부분 브러시 ================= */
 let tool = 'view', mouse = null, painting = null;
 function ensureZg(it, W, H) {   // 긴 변 512 격자: tol(0 = 칠 안 함) · ten
-  if (!it.zg) { const k = 512 / Math.max(W, H), gw = Math.max(1, Math.round(W * k)), gh = Math.max(1, Math.round(H * k)); it.zg = { gw, gh, tol: new Float32Array(gw * gh), ten: new Float32Array(gw * gh).fill(NaN) }; it.zgN = 0; }
+  if (!it.zg) { const k = 512 / Math.max(W, H), gw = Math.max(1, Math.round(W * k)), gh = Math.max(1, Math.round(H * k)); it.zg = { gw, gh, tol: new Float32Array(gw * gh), ten: new Float32Array(gw * gh).fill(NaN), show: new Uint8Array(gw * gh) }; it.zgN = 0; }   // show = 칠한 영역 표시(값과 별개)
   return it.zg;
 }
-const brushSnap = it => ({ k: 'b', it, tol: it.zg.tol.slice(), ten: it.zg.ten.slice() });
+const brushSnap = it => ({ k: 'b', it, tol: it.zg.tol.slice(), ten: it.zg.ten.slice(), show: it.zg.show.slice() });
 function zgCount(it) { let n = 0; for (const v of it.zg.tol) if (v > 0) n++; it.zgN = n; }
 function zcol(v) {   // 전체 허용 오차 대비: 작을수록(점 많이) 진한 파랑, 클수록(점 적게) 노랑
   const q = Math.log(v / S.simplify) / Math.log(4), k = Math.min(1, Math.abs(q));
@@ -650,7 +665,7 @@ function drawZones(g) {   // 이미지 좌표계(translate·scale 된 상태)에
   const it = cur.it, zg = ensureZg(it, cur.bmp.width, cur.bmp.height);
   if (!it.zc || it.zcDirty) {
     const c = it.zc || new OffscreenCanvas(zg.gw, zg.gh), cg = c.getContext('2d'), id = cg.createImageData(zg.gw, zg.gh);
-    for (let i = 0; i < zg.tol.length; i++) { const v = zg.tol[i]; if (v > 0) id.data.set(zcol(v), i * 4); }
+    for (let i = 0; i < zg.tol.length; i++) { const v = zg.tol[i]; if (v > 0 && zg.show[i]) id.data.set(zcol(v), i * 4); }
     cg.putImageData(id, 0, 0); it.zc = c; it.zcDirty = false;
   }
   g.save(); g.imageSmoothingEnabled = true; g.drawImage(it.zc, 0, 0, cur.bmp.width, cur.bmp.height); g.restore();
@@ -666,8 +681,8 @@ function paintAt(x, y) {   // 누적형: 한 획에서 칸마다 한 번만, 오
     for (let xx = Math.max(0, Math.floor(gx - r)); xx <= Math.min(zg.gw - 1, Math.ceil(gx + r)); xx++) {
       if ((xx + .5 - gx) ** 2 + (yy + .5 - gy) ** 2 > r * r) continue;
       const k = yy * zg.gw + xx;
-      if (erase) { zg.tol[k] = 0; zg.ten[k] = NaN; continue; }
-      if (touched[k]) continue; touched[k] = 1;
+      if (erase) { zg.tol[k] = 0; zg.ten[k] = NaN; zg.show[k] = 0; continue; }
+      if (touched[k]) continue; touched[k] = 1; zg.show[k] = 1;
       const base = zg.tol[k] > 0 ? zg.tol[k] : S.simplify;
       zg.tol[k] = Math.min(8, Math.max(.2, base * f));
       if (S.bten) zg.ten[k] = S.bten / 100;
@@ -693,8 +708,8 @@ function setTool(t) {
 $('tools').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.id === 'zclear') {
-    if (!cur || !cur.it.zgN) return flash('칠한 곳 없음');
-    pushHist(brushSnap(cur.it)); cur.it.zg.tol.fill(0); cur.it.zg.ten.fill(NaN); cur.it.zgN = 0; cur.it.zcDirty = true; update(); flash('전체 지우기 · Ctrl+Z로 복구'); return;
+    if (!cur || !cur.it.zg || !cur.it.zg.show.some(v => v)) return flash('표시된 영역 없음');
+    pushHist(brushSnap(cur.it)); cur.it.zg.show.fill(0); cur.it.zcDirty = true; draw(); flash('영역 표시만 지움 · 브러시 결과는 유지'); return;
   }
   if (b.dataset.m) { bmode = b.dataset.m; setTool('1'); return; }
   setTool(b.dataset.t);
@@ -761,7 +776,14 @@ $('fin').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
 ['dragover', 'dragenter'].forEach(t => document.addEventListener(t, e => { e.preventDefault(); $('stage').classList.add('drag'); }));
 ['dragleave', 'drop'].forEach(t => document.addEventListener(t, e => { e.preventDefault(); $('stage').classList.remove('drag'); }));
 document.addEventListener('drop', e => addFiles(e.dataTransfer.files));
-$('list').onclick = e => { const el = e.target.closest('.it'); if (el) select(+el.dataset.i); };
+$('list').onclick = e => { $('ctx').style.display = 'none'; const el = e.target.closest('.it'); if (el) select(+el.dataset.i); };
+$('list').oncontextmenu = e => {   // 오른쪽 버튼 메뉴
+  const el = e.target.closest('.it'); if (!el) return; e.preventDefault();
+  if (+el.dataset.i !== sel) select(+el.dataset.i);
+  const m = $('ctx'); m.style.left = e.clientX + 'px'; m.style.top = e.clientY + 'px'; m.style.display = 'block';
+};
+$('ctx').onclick = e => { const b = e.target.closest('button'); $('ctx').style.display = 'none'; if (b && b.dataset.a === 'del') deleteSel(); };
+document.addEventListener('pointerdown', e => { if (!e.target.closest('#ctx')) $('ctx').style.display = 'none'; });
 $('runAll').onclick = runAll;
 $('clear').onclick = async () => {
   if (await popup('목록을 비울까요?', [['cancel', '취소'], ['ok', '비우기', 'red']]) !== 'ok') return;
@@ -783,6 +805,7 @@ document.addEventListener('keydown', e => {
     if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); redo(); return; }
   }
   if (e.target.matches('input[type=text]')) return;
+  if (e.key === 'Delete' && !e.target.matches('select,input')) { e.preventDefault(); deleteSel(); return; }
   const v = { 1: 'line', 2: 'vmask', 3: 'cut', 4: 'mask' }[e.key]; if (v) setView(v);
   if (!e.ctrlKey && !e.metaKey && !e.altKey) {
     const tk = { v: 'view', b: '1', e: '0' }[e.key.toLowerCase()]; if (tk) setTool(tk);
