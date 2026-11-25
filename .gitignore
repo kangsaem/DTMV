@@ -1,0 +1,4 @@
+tests/.vend/
+tests/.out_*
+tests/out_*
+__pycache__/
