@@ -46,6 +46,7 @@ main{flex:1;display:grid;grid-template-columns:230px minmax(0,1fr) 300px;min-hei
 #cv.paint{cursor:none}
 #views{position:absolute;left:10px;bottom:10px;display:flex;gap:2px}
 #views button{height:24px;font-size:11px;padding:0 10px}
+#views .vsep{width:10px}
 #right{border-left:1px solid #111;display:flex;flex-direction:column;min-height:0}
 #scroll{flex:1;overflow:auto;padding:8px}
 .prow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px;margin-bottom:6px;position:relative}
@@ -96,7 +97,7 @@ input[type=range]::-moz-range-thumb{width:9px;height:15px;border-radius:0;backgr
   <button id="clear" class="b" disabled>목록 비우기</button>
   <span class="sp"></span>
   <div id="mstat"><span id="mtext">엔진 대기</span><div id="mbar"><i></i></div></div>
-  <span style="color:var(--dim);font-size:11px;margin-left:8px">v0.4.0</span>
+  <span style="color:var(--dim);font-size:11px;margin-left:8px">v0.4.1</span>
 </div>
 <input id="fin" type="file" accept="image/*" multiple hidden>
 <main>
@@ -114,9 +115,11 @@ input[type=range]::-moz-range-thumb{width:9px;height:15px;border-radius:0;backgr
       <button id="zclear" class="b ov" title="이 사진의 브러시 모두 지우기">비우기</button>
     </div>
     <div id="views">
-      <button data-v="line" class="b ov on" title="벡터 보기 (1)">벡터</button>
-      <button data-v="cut" class="b ov" title="누끼 보기 (2)">누끼</button>
-      <button data-v="mask" class="b ov" title="마스크 보기 (3)">마스크</button>
+      <button data-v="line" class="b ov on" title="벡터: 사진 위 벡터 선·점 (1)">벡터</button>
+      <button data-v="vmask" class="b ov" title="벡터 마스크: SVG 패스를 흰색으로 채운 모양 (2)">마스크</button>
+      <span class="vsep"></span>
+      <button data-v="cut" class="b ov" title="비트맵: 배경을 지운 PNG (3)">비트맵</button>
+      <button data-v="mask" class="b ov" title="비트맵 마스크: AI 마스크 PNG (4)">마스크</button>
     </div>
   </section>
   <aside id="right">
@@ -684,7 +687,7 @@ $('plist').onclick = async e => {
   } else if (a.dataset.a === 'reset') { applyPreset(BUILTIN[0]); drawPList(); }
   else if (a.dataset.a === 'exp') {
     if (!userPresets.length) { popup('내보낼 사용자 프리셋이 없습니다.', [['ok', '확인']]); return; }
-    save(new Blob([JSON.stringify({ app: 'vectorman', version: '0.4.0', presets: userPresets.map(p => ({ name: p.name, values: p.v })) }, null, 2)], { type: 'application/json' }), 'vectorman_presets.json');
+    save(new Blob([JSON.stringify({ app: 'vectorman', version: '0.4.1', presets: userPresets.map(p => ({ name: p.name, values: p.v })) }, null, 2)], { type: 'application/json' }), 'vectorman_presets.json');
   } else if (a.dataset.a === 'imp') $('fpreset').click();
 };
 function savePresets() { if (!store.set('vman.presets', userPresets)) popup('이 브라우저에 저장하지 못했습니다.\n내보내기로 파일에 백업하세요.', [['ok', '확인']]); }
@@ -948,6 +951,13 @@ function draw() {
     if (tool !== 'view' && mouse) { g.beginPath(); g.arc(mouse[0], mouse[1], S.bsize / 2, 0, 7); g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.stroke(); g.strokeStyle = '#000'; g.lineWidth = .5; g.stroke(); }
     return;
   }
+  if (view === 'vmask') {   // SVG 패스를 그대로 채워서 (저장 없이 SVG 모양 확인)
+    const inv = S.maskInv;
+    g.fillStyle = inv ? '#fff' : '#000'; g.fillRect(ox, oy, W * s, H * s);
+    g.save(); g.translate(ox, oy); g.scale(s, s); g.fillStyle = inv ? '#000' : '#fff'; g.fill(res.path, 'evenodd');
+    if (res.cutPath) { g.setLineDash([6 / s, 4 / s]); g.strokeStyle = S.cutColor; g.lineWidth = 1.5 / s; g.stroke(res.cutPath); }
+    g.restore(); return;
+  }
   if (!cur.alpha) cur.alpha = alphaOf(cur.prob, res.bin, cur.ww, cur.wh, W / cur.ww);
   if (view === 'cut') {
     const c = new OffscreenCanvas(cur.ww, cur.wh), cg = c.getContext('2d');
@@ -982,7 +992,7 @@ function paintAt(x, y) {
 }
 function setTool(t) {
   tool = t; [...$('tools').querySelectorAll('[data-t]')].forEach(b => b.classList.toggle('on', b.dataset.t === t));
-  $('cv').classList.toggle('paint', t !== 'view'); if (t !== 'view' && view !== 'line') setView('line'); else draw();
+  $('cv').classList.toggle('paint', t !== 'view'); if (t !== 'view' && view !== 'line') setView('line'); else draw();   // 칠하기는 벡터 보기에서
 }
 $('tools').onclick = async e => {
   const b = e.target.closest('button'); if (!b) return;
@@ -1061,7 +1071,7 @@ $('clear').onclick = async () => {
 };
 $('sSvg').onclick = () => saveOne('svg'); $('sPng').onclick = () => saveOne('png'); $('sMask').onclick = () => saveOne('mask');
 $('sZip').onclick = saveZip;
-function setView(v) { view = v; [...$('views').children].forEach(x => x.classList.toggle('on', x.dataset.v === v)); draw(); }
+function setView(v) { view = v; [...$('views').querySelectorAll('button')].forEach(x => x.classList.toggle('on', x.dataset.v === v)); draw(); }
 $('views').onclick = e => { const b = e.target.closest('button'); if (b) setView(b.dataset.v); };
 document.addEventListener('keydown', e => {
   if ($('pop').classList.contains('open')) return;
@@ -1071,7 +1081,7 @@ document.addEventListener('keydown', e => {
     if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); redo(); return; }
   }
   if (e.target.matches('input[type=text]')) return;
-  const v = { 1: 'line', 2: 'cut', 3: 'mask' }[e.key]; if (v) setView(v);
+  const v = { 1: 'line', 2: 'vmask', 3: 'cut', 4: 'mask' }[e.key]; if (v) setView(v);
   if (!e.ctrlKey && !e.metaKey && !e.altKey) {
     const tk = { v: 'view', a: '1', b: '2', e: '0' }[e.key.toLowerCase()]; if (tk) setTool(tk);
     if (e.key === '[' || e.key === ']') { snap(); S.bsize = Math.max(5, Math.min(300, S.bsize + (e.key === ']' ? 10 : -10))); syncUI(); changed('bsize'); }

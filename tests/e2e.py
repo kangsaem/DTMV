@@ -50,7 +50,7 @@ async def main():
     print('7 apply user preset cut =', await pg.input_value('#k_cut'))
     await pg.mouse.click(700, 400)
     await pg.click('#runAll'); await pg.wait_for_function("[...document.querySelectorAll('.it small')].every(s=>s.textContent.startsWith('완료'))", timeout=90000)
-    await pg.click('#views button[data-v=cut]'); await pg.wait_for_timeout(300); await pg.screenshot(path=OUT('4_cutout.png'))
+    await pg.click('#views button[data-v=cut]'); await pg.wait_for_timeout(300); await pg.screenshot(path=OUT('4_cutout.png')); await pg.keyboard.press('2'); await pg.wait_for_timeout(300); await pg.screenshot(path=OUT('6_vmask.png'))
     for sel, nm in [('#sSvg', 'a.svg'), ('#sPng', 'a.png'), ('#sMask', 'm.png'), ('#sZip', 'a.zip')]:
       async with pg.expect_download() as d: await pg.click(sel)
       dl = await d.value; await dl.save_as(OUT(nm)); print('dl', dl.suggested_filename, os.path.getsize(OUT(nm)))
