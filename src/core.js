@@ -262,14 +262,13 @@ const Core = (() => {
     }
     return { start: p[br[0]], segs };
   }
-  // 점별 허용 오차·장력: 브러시 구역(o.zg, o.zones) + 곡률 배분(o.alloc 0~1)
+  // 점별 허용 오차·장력: 브러시로 찍은 값(o.zg) + 곡률 배분(o.alloc 0~1)
   function loopParams(L, w, h, o) {
     const { p } = L, n = p.length, tol = new Float32Array(n), ten = new Float32Array(n), zg = o.zg;
-    for (let i = 0; i < n; i++) {
-      let z = 0;
-      if (zg) { const gx = Math.min(zg.gw - 1, Math.max(0, Math.floor(p[i][0] * zg.gw / w))), gy = Math.min(zg.gh - 1, Math.max(0, Math.floor(p[i][1] * zg.gh / h))); z = zg.g[gy * zg.gw + gx]; }
-      const Z = z && o.zones && o.zones[z];
-      tol[i] = Z ? Z.tol : o.simplify; ten[i] = Z ? Z.tension : (o.tension || 0);
+    for (let i = 0; i < n; i++) {   // 브러시로 찍은 값(tol>0)이 있으면 그 값, 없으면 전체 값
+      let k = -1;
+      if (zg) { const gx = Math.min(zg.gw - 1, Math.max(0, Math.floor(p[i][0] * zg.gw / w))), gy = Math.min(zg.gh - 1, Math.max(0, Math.floor(p[i][1] * zg.gh / h))); k = gy * zg.gw + gx; }
+      if (k >= 0 && zg.tol[k] > 0) { tol[i] = zg.tol[k]; ten[i] = zg.ten[k]; } else { tol[i] = o.simplify; ten[i] = o.tension || 0; }
     }
     if (o.alloc > 0 && n > 20) {   // 곡률 큰 곳 = 오차 작게(점 촘촘), 완만한 곳 = 오차 크게
       const far = (i, st) => { let k = 1, q = p[(i + st + n) % n]; while (k < 14 && len(sub(q, p[i])) < 5) { k++; q = p[((i + st * k) % n + n) % n]; } return q; };
@@ -317,7 +316,7 @@ const Core = (() => {
   }
   // 전체: 확률 마스크(0..1, w×h) → {d, nodes, paths, anchors, tol, bin, cut}
   // o: threshold, smooth, simplify(허용 오차 px), curve, corner, target, merge(0~1, 0=끔), alloc(0~1), tension(−0.3~0.3),
-  //    zg({g,gw,gh} 브러시 구역 격자, 0/1/2), zones([, {tol, tension}, {tol, tension}]), speck, hole, people, offset, cut, scale
+  //    zg({gw,gh,tol,ten} 브러시로 찍은 값 격자, tol 0 = 없음), speck, hole, people, offset, cut, scale
   function vectorize(prob, w, h, o) {
     const b = blur(prob, w, h, o.smooth);
     let bin = new Uint8Array(w * h);
