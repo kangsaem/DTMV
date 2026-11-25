@@ -38,6 +38,8 @@ main{flex:1;display:grid;grid-template-columns:230px minmax(0,1fr) 300px;min-hei
 #empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--dim);font-size:14px;pointer-events:none}
 #stage.drag{box-shadow:inset 0 0 0 2px var(--edge)}
 #busy{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:rgba(38,38,38,.92);border:1px solid #555;padding:5px 12px;font-size:12px;display:none}
+#pts{position:absolute;left:10px;top:10px;background:rgba(38,38,38,.88);border:1px solid #444;padding:4px 10px;font-size:13px;font-weight:700;display:none;font-variant-numeric:tabular-nums}
+#pts small{font-weight:400;color:var(--sub);margin-left:6px}
 #views{position:absolute;left:10px;bottom:10px;display:flex;gap:2px}
 #views button{height:24px;font-size:11px;padding:0 10px}
 #right{border-left:1px solid #111;display:flex;flex-direction:column;min-height:0}
@@ -99,6 +101,7 @@ input[type=range]::-moz-range-thumb{width:9px;height:15px;border-radius:0;backgr
     <canvas id="cv"></canvas>
     <div id="empty">사진을 끌어다 놓기</div>
     <div id="busy"></div>
+    <div id="pts"></div>
     <div id="views">
       <button data-v="line" class="b ov on" title="외곽선 보기 (1)">외곽선</button>
       <button data-v="cut" class="b ov" title="누끼 보기 (2)">누끼</button>
@@ -172,7 +175,8 @@ const GROUPS = [
   ]],
   ['곡선', [
     { k: 'smooth', l: '부드럽게', t: 'range', min: 0, max: 12, s: 1, d: 2, u: 'px', tip: '외곽의 잔물결 제거' },
-    { k: 'simplify', l: '단순화', t: 'range', min: .3, max: 6, s: .1, d: 1.2, f: 1, u: 'px', tip: '높일수록 노드 수 감소' },
+    { k: 'simplify', l: '허용 오차', t: 'range', min: .3, max: 6, s: .1, d: 1, f: 1, u: 'px', tip: '곡선이 원래 윤곽에서 벗어나도 되는 최대 거리(작업 해상도 px). 클수록 점이 적고, 작을수록 정확' },
+    { k: 'target', l: '목표 점 수', t: 'range', min: 0, max: 1000, s: 10, d: 0, z: '끔', tip: '점 수가 이 값 이하가 되도록 허용 오차를 자동으로 키움 (0 = 끔)' },
     { k: 'corner', l: '모서리 보존', t: 'range', min: 0, max: 100, s: 5, d: 0, tip: '모자 챙·어깨 같은 꺾인 곳을 각지게 유지 (0 = 끔)' },
     { k: 'curve', l: '연결', t: 'select', d: 'bezier', o: [['bezier', '베지어 곡선'], ['line', '직선']] },
   ]],
@@ -202,24 +206,27 @@ const GROUPS = [
   ['미리보기', [
     { k: 'lineColor', l: '선 색', t: 'color', d: '#ff3b30' },
     { k: 'lineW', l: '선 굵기', t: 'range', min: 1, max: 5, s: .5, d: 1.5, f: 1, u: 'px' },
+    { k: 'showPts', l: '', t: 'check', d: true, c: '점 표시', tip: 'SVG 고정점(앵커) 위치를 표시' },
     { k: 'bg', l: '배경', t: 'select', d: 'check', o: [['check', '체크무늬'], ['black', '검정'], ['gray', '회색'], ['white', '흰색']] },
   ]],
 ];
 const SPEC = {}; GROUPS.forEach(([, a]) => a.forEach(s => SPEC[s.k] = s));
 const DEF = Object.fromEntries(Object.values(SPEC).map(s => [s.k, s.d]));
+const BASE = { thr: .25, offset: 0, feather: 0, smooth: 0, simplify: 1, corner: 0, curve: 'bezier', speck: 20, hole: 0, holeAll: false, people: '0' };
+Object.assign(DEF, BASE);   // 기본 = 사용자 실사진 값(v0.2.1 '단순 실루엣') + 허용 오차 1px
 const BUILTIN = [
   { name: '기본', v: {} },
-  { name: '머리카락 살리기', v: { thr: .3, smooth: 0, simplify: .6, feather: 0, speck: 1 } },
-  { name: '칼선용', v: { smooth: 6, simplify: 3, people: '1', holeAll: true, offset: 4, cut: 20, svgMode: 'both', fillColor: '#ffffff', strokeColor: '#000000', strokeW: 1 } },
-  { name: '일러 편집용', v: { smooth: 4, simplify: 3, corner: 45, speck: 3, hole: 1 } },
-  { name: '단순 실루엣', v: { thr: .25, offset: 0, feather: 0, smooth: 0, simplify: 6, corner: 0, curve: 'bezier', speck: 20, hole: 0, holeAll: false, people: '0' } },
+  { name: '머리카락 살리기', v: { thr: .2, simplify: .5, speck: 5 } },
+  { name: '칼선용', v: { smooth: 4, simplify: 2, people: '1', holeAll: true, offset: 4, cut: 20, svgMode: 'both', fillColor: '#ffffff', strokeColor: '#000000', strokeW: 1 } },
+  { name: '일러 편집용', v: { smooth: 2, simplify: 1.5, corner: 45, target: 150 } },
 ].map(p => ({ ...p, builtin: true, v: { ...DEF, ...p.v } }));
 
 const $ = id => document.getElementById(id);
 const store = { get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
                 set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } } };
-let S = { ...DEF, ...store.get('vman.last', {}).v };
-let presetName = store.get('vman.last', {}).name || '기본';
+const LAST = store.get('vman.last', {}), LASTOK = LAST.ver === 3;   // v0.3 부터 '허용 오차' 뜻이 바뀌어 예전 마지막 설정은 버림
+let S = { ...DEF, ...(LASTOK ? LAST.v : {}) };
+let presetName = (LASTOK && LAST.name) || '기본';
 let userPresets = store.get('vman.presets', []);
 
 /* ================= 되돌리기 (Ctrl+Z / Ctrl+Shift+Z·Ctrl+Y, 최대 50개) ================= */
@@ -234,14 +241,14 @@ function commitHist() {
   if (pend !== null && pend !== snapNow()) { hist.push(pend); if (hist.length > HMAX) hist.shift(); fut = []; }
   pend = null;
 }
-function restore(js) { const o = JSON.parse(js); S = { ...DEF, ...o.S }; presetName = o.n; syncUI(); store.set('vman.last', { name: presetName, v: S }); if (cur) cur.alpha = null; update(); }
+function restore(js) { const o = JSON.parse(js); S = { ...DEF, ...o.S }; presetName = o.n; syncUI(); store.set('vman.last', { name: presetName, v: S, ver: 3 }); if (cur) cur.alpha = null; update(); }
 function undo() { commitHist(); if (!hist.length) return flash('되돌릴 것 없음'); fut.push(snapNow()); restore(hist.pop()); flash(`되돌리기 · 남은 ${hist.length}`); }
 function redo() { commitHist(); if (!fut.length) return flash('다시 할 것 없음'); hist.push(snapNow()); restore(fut.pop()); flash(`다시 실행 · 남은 ${fut.length}`); }
 let ft = 0;
 function flash(t) { busy(t); clearTimeout(ft); ft = setTimeout(() => { if ($('busy').textContent === t) busy(''); }, 900); }
 
 /* ================= 설정 화면 ================= */
-const fmt = (s, v) => s.t === 'range' ? (+v).toFixed(s.f || 0) + (s.u || '') : '';
+const fmt = (s, v) => s.t !== 'range' ? '' : (s.z && +v === 0) ? s.z : (+v).toFixed(s.f || 0) + (s.u || '');
 function buildGroups() {
   const closed = store.get('vman.closed', ['SVG 출력', 'PNG 출력', '파일', '미리보기']);
   $('groups').innerHTML = GROUPS.map(([g, a]) => `<div class="grp${closed.includes(g) ? ' closed' : ''}" data-g="${g}"><button class="b head">${closed.includes(g) ? '▸' : '▾'} ${g}</button><div class="body">` +
@@ -275,12 +282,12 @@ function syncUI() {
   $('stage').className = 'bg-' + S.bg + ($('stage').classList.contains('drag') ? ' drag' : '');
   presetLabel();
 }
-const PREVIEW_ONLY = ['lineColor', 'lineW', 'bg'], OUTPUT_ONLY = ['svgMode', 'fillColor', 'strokeColor', 'strokeW', 'cutColor', 'pngScale', 'maskInv', 'prefix', 'suffix', 'feather'];
+const PREVIEW_ONLY = ['lineColor', 'lineW', 'bg', 'showPts'], OUTPUT_ONLY = ['svgMode', 'fillColor', 'strokeColor', 'strokeW', 'cutColor', 'pngScale', 'maskInv', 'prefix', 'suffix', 'feather'];
 let tm = 0;
 function changed(k) {
   const s = SPEC[k]; if (s && s.t === 'range') $('v_' + k).textContent = fmt(s, S[k]);
   if (k === 'bg') syncUI();
-  store.set('vman.last', { name: presetName, v: S });
+  store.set('vman.last', { name: presetName, v: S, ver: 3 });
   presetLabel();
   if (PREVIEW_ONLY.includes(k)) { draw(); return; }
   if (OUTPUT_ONLY.includes(k) || k === 'cutColor') { if (k === 'feather' && cur) cur.alpha = null; draw(); return; }
@@ -295,7 +302,7 @@ function presetLabel() {
   const p = findPreset(presetName), dirty = !p || !same(p.v, S);
   $('presetBtn').textContent = `프리셋: ${presetName}${dirty ? ' *' : ''} ▾`;
 }
-function applyPreset(p) { commitHist(); snap(); S = { ...DEF, ...p.v }; presetName = p.name; syncUI(); store.set('vman.last', { name: presetName, v: S }); update(); }
+function applyPreset(p) { commitHist(); snap(); S = { ...DEF, ...p.v }; presetName = p.name; syncUI(); store.set('vman.last', { name: presetName, v: S, ver: 3 }); update(); }
 function drawPList() {
   $('plist').innerHTML = allPresets().map((p, i) => `<div class="pi${p.name === presetName ? ' cur' : ''}" data-i="${i}"><span></span>${p.builtin ? '<small>기본 제공</small>' : ''}</div>`).join('') +
     `<div class="pact"><button class="b" data-a="del">삭제</button><button class="b" data-a="reset">기본값으로</button><button class="b" data-a="exp">내보내기</button><button class="b" data-a="imp">가져오기</button></div>`;
@@ -326,7 +333,7 @@ $('presetSave').onclick = async () => {
   if (BUILTIN.some(b => b.name === n)) { popup('기본 제공 프리셋 이름은 쓸 수 없습니다.', [['ok', '확인']]); return; }
   if (userPresets.some(u => u.name === n) && n !== presetName && await popup(`'${n}' 프리셋을 덮어쓸까요?`, [['cancel', '취소'], ['ok', '덮어쓰기', 'red']]) !== 'ok') return;
   userPresets = userPresets.filter(u => u.name !== n).concat([{ name: n, v: { ...S } }]);
-  savePresets(); presetName = n; store.set('vman.last', { name: n, v: S }); presetLabel();
+  savePresets(); presetName = n; store.set('vman.last', { name: n, v: S, ver: 3 }); presetLabel();
 };
 $('fpreset').onchange = async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
@@ -439,7 +446,7 @@ async function infer(bmp) {
 
 /* ================= 마스크 → 결과 ================= */
 function opts(scale) {
-  return { threshold: S.thr, smooth: S.smooth, simplify: S.simplify, curve: S.curve === 'bezier', corner: S.corner,
+  return { threshold: S.thr, smooth: S.smooth, simplify: S.simplify, target: S.target, curve: S.curve === 'bezier', corner: S.corner,
            speck: S.speck / 100, hole: S.holeAll ? Infinity : S.hole / 100, people: +S.people,
            offset: Math.round(S.offset / scale), cut: S.cut ? Math.max(1, Math.round(S.cut / scale)) : 0, scale };
 }
@@ -545,7 +552,9 @@ function update() {
   const t = performance.now();
   res = Core.vectorize(cur.prob, ww, wh, opts(W / ww));
   res.path = new Path2D(res.d); res.cutPath = res.cut ? new Path2D(res.cut) : null; cur.alpha = null;
-  $('stats').textContent = `패스 ${res.paths} · 노드 ${res.nodes.toLocaleString()} · ${W}×${H} · ${(performance.now() - t).toFixed(0)}ms`;
+  $('stats').textContent = `${W}×${H} · 작업 ${ww}×${wh} · ${(performance.now() - t).toFixed(0)}ms`;
+  $('pts').innerHTML = `점 ${res.nodes.toLocaleString()}개<small>패스 ${res.paths} · 오차 ${res.tol.toFixed(1)}px${S.target && res.tol > S.simplify ? ' (자동)' : ''}</small>`;
+  $('pts').style.display = 'block';
   ['sSvg', 'sPng', 'sMask'].forEach(b => $(b).disabled = false);
   draw();
 }
@@ -563,7 +572,11 @@ function draw() {
     g.save(); g.beginPath(); g.rect(ox, oy, W * s, H * s); g.clip(); g.translate(ox, oy); g.scale(s, s);
     g.save(); g.clip(res.path, 'evenodd'); g.drawImage(cur.bmp, 0, 0); g.restore();
     g.lineWidth = S.lineW / s; g.strokeStyle = S.lineColor; g.lineJoin = 'round'; g.stroke(res.path);
-    if (res.cutPath) { g.setLineDash([6 / s, 4 / s]); g.strokeStyle = S.cutColor; g.stroke(res.cutPath); }
+    if (res.cutPath) { g.setLineDash([6 / s, 4 / s]); g.strokeStyle = S.cutColor; g.stroke(res.cutPath); g.setLineDash([]); }
+    if (S.showPts) {   // 고정점: 흰 사각 + 선 색 테두리
+      const a = res.anchors, q = 3.5 / s; g.fillStyle = '#fff'; g.strokeStyle = S.lineColor; g.lineWidth = 1 / s;
+      for (let i = 0; i < a.length; i += 2) { g.fillRect(a[i] - q, a[i + 1] - q, 2 * q, 2 * q); g.strokeRect(a[i] - q, a[i + 1] - q, 2 * q, 2 * q); }
+    }
     g.restore();
     return;
   }
@@ -618,7 +631,7 @@ $('list').onclick = e => { const el = e.target.closest('.it'); if (el) select(+e
 $('runAll').onclick = runAll;
 $('clear').onclick = async () => {
   if (await popup('목록을 비울까요?', [['cancel', '취소'], ['ok', '비우기', 'red']]) !== 'ok') return;
-  items.length = 0; sel = -1; if (cur) cur.bmp.close(); cur = null; res = null; $('stats').textContent = '';
+  items.length = 0; sel = -1; if (cur) cur.bmp.close(); cur = null; res = null; $('stats').textContent = ''; $('pts').style.display = 'none';
   ['sSvg', 'sPng', 'sMask'].forEach(b => $(b).disabled = true); drawList(); draw();
 };
 $('sSvg').onclick = () => saveOne('svg'); $('sPng').onclick = () => saveOne('png'); $('sMask').onclick = () => saveOne('mask');

@@ -2,3 +2,5 @@ tests/.vend/
 tests/.out_*
 tests/out_*
 __pycache__/
+tests/.real_*
+tests/.cmp*

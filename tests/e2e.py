@@ -21,15 +21,18 @@ async def main():
     await pg.goto((T.parent / 'web/vectorman.html').as_uri())
     await pg.screenshot(path=OUT('0_empty.png'))
     await pg.set_input_files('#fin', [str(T / 'person.jpg')] * 2)
-    await pg.wait_for_function("document.getElementById('stats').textContent.includes('노드')", timeout=90000)
-    print('1 stats:', await pg.text_content('#stats'), '|', await pg.text_content('#mtext'))
+    await pg.wait_for_function("document.getElementById('pts').textContent.includes('점')", timeout=90000)
+    print('1 pts:', await pg.text_content('#pts'), '|', await pg.text_content('#mtext'))
     await pg.screenshot(path=OUT('1_line.png'))
+    await pg.eval_on_selector('#k_target', "(e)=>{e.value='40';e.dispatchEvent(new Event('input'))}"); await pg.wait_for_timeout(500)
+    print('1b target 40:', await pg.text_content('#pts'))
+    await pg.eval_on_selector('#k_target', "(e)=>{e.value='0';e.dispatchEvent(new Event('input'))}"); await pg.wait_for_timeout(300)
     # 설정 변경: 칼선 + 확장 + 모서리
     await pg.click('.grp[data-g="SVG 출력"] > button')
     for k, v in [('cut', '30'), ('offset', '10'), ('corner', '50')]:
       await pg.eval_on_selector('#k_' + k, f"(e)=>{{e.value='{v}';e.dispatchEvent(new Event('input'))}}")
     await pg.wait_for_timeout(600)
-    print('2 after settings:', await pg.text_content('#stats'), '|', await pg.text_content('#presetBtn'))
+    print('2 after settings:', await pg.text_content('#pts'), '|', await pg.text_content('#presetBtn'))
     await pg.screenshot(path=OUT('2_cut.png'))
     # 프리셋 저장
     await pg.click('#presetSave'); await pg.fill('#pop input', '내 칼선'); await pg.keyboard.press('Enter')

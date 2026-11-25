@@ -144,48 +144,127 @@ const Core = (() => {
     return out;
   }
 
-  // SVG path d 문자열. curve=true면 Catmull-Rom → 3차 베지어. corner(0~100) = 꺾임이 큰 점은 모서리로 유지(0=끔)
-  function toPath(loops, s, curve, corner, W, H) {
-    const f = v => (Math.round(v * s * 10) / 10).toString();
-    const lim = corner > 0 ? Math.cos((135 - corner) * Math.PI / 180) : -2; // 진행 방향 cos 이 이 값보다 작으면 모서리
-    let d = '', nodes = 0;
-    for (const p of loops) {
-      const n = p.length; if (n < 3) continue; nodes += n;
-      const sharp = new Uint8Array(n);
-      if (lim > -2) for (let i = 0; i < n; i++) {
-        // 계단 모서리가 두 점(45°+45°)으로 갈라지므로 3px 이상 떨어진 이웃으로 꺾임을 잰다
-        const b = p[i], far = st => { let k = 1, q = p[(i + st + n) % n]; while (k < 5 && Math.hypot(q[0] - b[0], q[1] - b[1]) < 3) { k++; q = p[(i + st * k + n * 5) % n]; } return q; };
-        const a = far(-1), c = far(1);
-        const ux = b[0] - a[0], uy = b[1] - a[1], vx = c[0] - b[0], vy = c[1] - b[1];
-        const cs = (ux * vx + uy * vy) / ((Math.hypot(ux, uy) * Math.hypot(vx, vy)) || 1);
-        if (cs < lim) sharp[i] = 1;
-      }
-      // 사진 가장자리 위의 점은 항상 모서리(곡선이 가장자리를 둥글게 깎지 않게)
-      const edge = new Uint8Array(n);
-      if (W) for (let i = 0; i < n; i++) { const [x, y] = p[i]; if (x <= 1 || y <= 1 || x >= W - 1 || y >= H - 1) sharp[i] = edge[i] = 1; }
-      d += `M${f(p[0][0])} ${f(p[0][1])}`;
-      for (let i = 0; i < n; i++) {
-        const j = (i + 1) % n, p0 = p[(i - 1 + n) % n], p1 = p[i], p2 = p[j], p3 = p[(i + 2) % n];
-        if (!curve) { if (i < n - 1) d += `L${f(p2[0])} ${f(p2[1])}`; continue; }
-        // 접선 길이를 구간 길이의 1/3로 제한 → 모서리에서 튀는 고리 방지. 모서리 점은 접선 0
-        const seg = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / 3;
-        const cl = (x, y) => { const l = Math.hypot(x, y); return l > seg && l > 0 ? [x * seg / l, y * seg / l] : [x, y]; };
-        if (edge[i] || edge[j]) { d += `L${f(p2[0])} ${f(p2[1])}`; continue; } // 가장자리에 닿는 구간 = 직선
-        const [ax, ay] = sharp[i] ? [0, 0] : cl((p2[0] - p0[0]) / 6, (p2[1] - p0[1]) / 6);
-        const [bx, by] = sharp[j] ? [0, 0] : cl((p3[0] - p1[0]) / 6, (p3[1] - p1[1]) / 6);
-        d += `C${f(p1[0] + ax)} ${f(p1[1] + ay)} ${f(p2[0] - bx)} ${f(p2[1] - by)} ${f(p2[0])} ${f(p2[1])}`;
-      }
-      d += 'Z';
+  // ---------- 곡선 맞춤 (Schneider, Graphics Gems 1990): 원래 윤곽에서 허용 오차(px) 안에 들 때까지 베지어를 쪼개며 맞춤 ----------
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1]], add = (a, b) => [a[0] + b[0], a[1] + b[1]], mul = (a, k) => [a[0] * k, a[1] * k];
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1], len = a => Math.hypot(a[0], a[1]);
+  const norm = a => { const l = len(a) || 1; return [a[0] / l, a[1] / l]; };
+  function bez(b, t) { const m = 1 - t; return [m * m * m * b[0][0] + 3 * m * m * t * b[1][0] + 3 * m * t * t * b[2][0] + t * t * t * b[3][0], m * m * m * b[0][1] + 3 * m * m * t * b[1][1] + 3 * m * t * t * b[2][1] + t * t * t * b[3][1]]; }
+  function bezD1(b, t) { const m = 1 - t; return [3 * (m * m * (b[1][0] - b[0][0]) + 2 * m * t * (b[2][0] - b[1][0]) + t * t * (b[3][0] - b[2][0])), 3 * (m * m * (b[1][1] - b[0][1]) + 2 * m * t * (b[2][1] - b[1][1]) + t * t * (b[3][1] - b[2][1]))]; }
+  function bezD2(b, t) { const m = 1 - t; return [6 * (m * (b[2][0] - 2 * b[1][0] + b[0][0]) + t * (b[3][0] - 2 * b[2][0] + b[1][0])), 6 * (m * (b[2][1] - 2 * b[1][1] + b[0][1]) + t * (b[3][1] - 2 * b[2][1] + b[1][1]))]; }
+  function chordU(P) { const u = [0]; for (let i = 1; i < P.length; i++) u.push(u[i - 1] + len(sub(P[i], P[i - 1]))); const L = u[u.length - 1] || 1; return u.map(x => x / L); }
+  function genBez(P, u, t1, t2) {
+    const p0 = P[0], p3 = P[P.length - 1]; let c00 = 0, c01 = 0, c11 = 0, x0 = 0, x1 = 0;
+    for (let i = 0; i < P.length; i++) {
+      const t = u[i], m = 1 - t, a1 = mul(t1, 3 * m * m * t), a2 = mul(t2, 3 * m * t * t);
+      c00 += dot(a1, a1); c01 += dot(a1, a2); c11 += dot(a2, a2);
+      const tmp = sub(P[i], add(mul(p0, m * m * m + 3 * m * m * t), mul(p3, 3 * m * t * t + t * t * t)));
+      x0 += dot(a1, tmp); x1 += dot(a2, tmp);
     }
-    return { d, nodes, paths: loops.length };
+    const det = c00 * c11 - c01 * c01, seg = len(sub(p3, p0)), eps = 1e-6 * seg;
+    let al = det ? (x0 * c11 - x1 * c01) / det : 0, ar = det ? (c00 * x1 - c01 * x0) / det : 0;
+    if (!(al > eps) || !(ar > eps) || al > seg * 2 || ar > seg * 2) al = ar = seg / 3;   // 실패·과도 = 1/3 규칙
+    return [p0, add(p0, mul(t1, al)), add(p3, mul(t2, ar)), p3];
+  }
+  function maxErr(P, b, u) {
+    let mx = 0, at = P.length >> 1;
+    for (let i = 1; i < P.length - 1; i++) { const d = sub(bez(b, u[i]), P[i]), e = dot(d, d); if (e >= mx) { mx = e; at = i; } }
+    return [mx, at];
+  }
+  function reparam(P, b, u) {
+    return u.map((t, i) => { const d = sub(bez(b, t), P[i]), d1 = bezD1(b, t), d2 = bezD2(b, t), den = dot(d1, d1) + dot(d, d2);
+      const n = den ? t - dot(d, d1) / den : t; return Math.min(1, Math.max(0, n)); });
+  }
+  function fitCubic(P, t1, t2, e2, out, depth) {
+    if (P.length === 2 || depth > 40) { const d = len(sub(P[P.length - 1], P[0])) / 3; out.push([P[0], add(P[0], mul(t1, d)), add(P[P.length - 1], mul(t2, d)), P[P.length - 1]]); return; }
+    let u = chordU(P), b = genBez(P, u, t1, t2), [er, sp] = maxErr(P, b, u);
+    if (er < e2) { out.push(b); return; }
+    if (er < e2 * 9) for (let k = 0; k < 6; k++) { u = reparam(P, b, u); b = genBez(P, u, t1, t2); [er, sp] = maxErr(P, b, u); if (er < e2) { out.push(b); return; } }
+    sp = Math.max(1, Math.min(P.length - 2, sp));
+    const tc = norm(sub(P[sp - 1], P[sp + 1]));
+    fitCubic(P.slice(0, sp + 1), t1, tc, e2, out, depth + 1);
+    fitCubic(P.slice(sp), mul(tc, -1), t2, e2, out, depth + 1);
+  }
+  // 열린 꺾은선 RDP
+  function rdpOpen(P, eps) {
+    if (P.length < 3) return P;
+    const keep = new Uint8Array(P.length); keep[0] = keep[P.length - 1] = 1; const st = [[0, P.length - 1]];
+    while (st.length) { const [a, b] = st.pop(); if (b - a < 2) continue;
+      const A = P[a], d = sub(P[b], A), L = len(d) || 1e-9; let mi = -1, md = -1;
+      for (let i = a + 1; i < b; i++) { const q = sub(P[i], A), x = Math.abs(d[0] * q[1] - d[1] * q[0]) / L; if (x > md) { md = x; mi = i; } }
+      if (md > eps) { keep[mi] = 1; st.push([a, mi], [mi, b]); } }
+    return P.filter((_, i) => keep[i]);
   }
 
-  function outline(bin, w, h, o) {
-    const loops = trace(bin, w, h, 8).map(l => simplify(l, o.simplify)).filter(l => l.length >= 3);
-    return toPath(loops, o.scale, o.curve, o.corner || 0, w, h);
+  // 윤곽 준비: 사진 가장자리 점 표시 · 모서리 찾기 · 계단 완화
+  function prepLoop(p, W, H, corner) {
+    const n = p.length, edge = new Uint8Array(n), mark = new Uint8Array(n);
+    for (let i = 0; i < n; i++) { const [x, y] = p[i]; if (x <= 1 || y <= 1 || x >= W - 1 || y >= H - 1) edge[i] = 1; }
+    if (corner > 0) {   // 3px 이상 떨어진 앞뒤 점으로 꺾임 측정, 이웃 안에서 가장 꺾인 점 하나만
+      const lim = Math.cos((130 - corner * 1.2) * Math.PI / 180), cs = new Float32Array(n).fill(2);
+      const far = (i, st) => { let k = 1, q = p[(i + st + n) % n]; while (k < 14 && len(sub(q, p[i])) < 5) { k++; q = p[((i + st * k) % n + n) % n]; } return q; };
+      for (let i = 0; i < n; i++) { if (edge[i]) continue; const u = norm(sub(p[i], far(i, -1))), v = norm(sub(far(i, 1), p[i])), c = dot(u, v); if (c < lim) cs[i] = c; }
+      for (let i = 0; i < n; i++) { if (cs[i] > 1) continue; let best = true; for (let k = -4; k <= 4 && best; k++) if (k && cs[(i + k + n) % n] < cs[i]) best = false; if (best) mark[i] = 1; }
+    }
+    for (let i = 0; i < n; i++) if (edge[i] && (!edge[(i - 1 + n) % n] || !edge[(i + 1) % n])) mark[i] = 1;   // 가장자리 구간의 양 끝
+    let q = p;   // [1,2,1] 완화 2회 (모서리·가장자리 점은 고정)
+    for (let pass = 0; pass < 2; pass++) q = q.map((a, i) => (mark[i] || edge[i]) ? a : [(q[(i - 1 + n) % n][0] + 2 * a[0] + q[(i + 1) % n][0]) / 4, (q[(i - 1 + n) % n][1] + 2 * a[1] + q[(i + 1) % n][1]) / 4]);
+    return { p: q, edge, mark };
   }
-  // 전체: 확률 마스크(0..1, w×h) → {d, nodes, paths, bin, cut}
-  // o: threshold, smooth, simplify, curve, corner, speck, hole, people, offset(작업 px), cut(작업 px, 0=없음), scale
+  // 윤곽 하나 → 구간들 [{l:[끝점]} | {c:[c1,c2,끝점]}], 시작점
+  function fitLoop(L, tol, curve) {
+    const { p, edge, mark } = L, n = p.length, e2 = tol * tol, segs = [];
+    let br = []; for (let i = 0; i < n; i++) if (mark[i]) br.push(i);
+    if (!curve) {   // 직선 모드: 꺾은선 단순화
+      const r = simplify(p, tol); for (let i = 1; i < r.length; i++) segs.push({ l: r[i] });
+      segs.push({ l: r[0] });
+      return { start: r[0], segs };
+    }
+    if (!br.length) {   // 모서리 없는 닫힌 곡선
+      const ring = p.concat([p[0]]), t = norm(sub(p[Math.min(3, n - 1)], p[n - Math.min(3, n - 1)])), out = [];
+      fitCubic(ring, t, mul(t, -1), e2, out, 0);
+      out.forEach(b => segs.push({ c: [b[1], b[2], b[3]] }));
+      return { start: p[0], segs };
+    }
+    for (let k = 0; k < br.length; k++) {
+      const a = br[k], b = br[(k + 1) % br.length], piece = [];
+      for (let i = a; ; i = (i + 1) % n) { piece.push(p[i]); if (i === b && piece.length > 1) break; if (piece.length > n + 1) break; }
+      if (piece.length < 2) continue;
+      let allEdge = true; for (let i = a; ; i = (i + 1) % n) { if (!edge[i]) { allEdge = false; break; } if (i === b) break; }
+      if (allEdge || piece.length < 4) { rdpOpen(piece, .5).slice(1).forEach(q => segs.push({ l: q })); continue; }
+      const k3 = Math.min(3, piece.length - 1), out = [];
+      fitCubic(piece, norm(sub(piece[k3], piece[0])), norm(sub(piece[piece.length - 1 - k3], piece[piece.length - 1])), e2, out, 0);
+      out.forEach(bz => segs.push({ c: [bz[1], bz[2], bz[3]] }));
+    }
+    return { start: p[br[0]], segs };
+  }
+  // 맞춘 윤곽들 → SVG d · 점 수 · 앵커 좌표(원본 픽셀)
+  function toPath(fits, s) {
+    const f = v => (Math.round(v * s * 10) / 10).toString(); let d = '', nodes = 0; const anchors = [];
+    for (const F of fits) {
+      if (!F.segs.length) continue;
+      d += `M${f(F.start[0])} ${f(F.start[1])}`;
+      F.segs.forEach((g, i) => {
+        if (g.l) d += `L${f(g.l[0])} ${f(g.l[1])}`; else d += `C${f(g.c[0][0])} ${f(g.c[0][1])} ${f(g.c[1][0])} ${f(g.c[1][1])} ${f(g.c[2][0])} ${f(g.c[2][1])}`;
+        const e = g.l || g.c[2]; anchors.push(e[0] * s, e[1] * s);
+      });
+      d += 'Z'; nodes += F.segs.length;
+    }
+    return { d, nodes, paths: fits.length, anchors };
+  }
+  // bin → 외곽선. o.target(>0) = 점 수가 이 값 이하가 되는 가장 작은 허용 오차를 찾음
+  function outline(bin, w, h, o) {
+    const loops = trace(bin, w, h, Math.max(8, Math.round(4 * o.simplify + 8))).map(l => prepLoop(l, w, h, o.corner || 0));   // 오차보다 작은 점 같은 고리는 버림
+    const run = tol => toPath(loops.map(L => fitLoop(L, tol, o.curve)), o.scale);
+    let tol = o.simplify, r = run(tol);
+    if (o.target > 0 && r.nodes > o.target) {
+      let lo = tol, hi = 64, best = null;
+      for (let k = 0; k < 12; k++) { const m = (lo + hi) / 2, x = run(m); if (x.nodes <= o.target) { best = x; hi = m; tol = m; } else lo = m; }
+      r = best || run(hi); if (!best) tol = hi;
+    }
+    return { ...r, tol };
+  }
+  // 전체: 확률 마스크(0..1, w×h) → {d, nodes, paths, anchors, tol, bin, cut}
+  // o: threshold, smooth, simplify(허용 오차 px), curve, corner, target, speck, hole, people, offset(작업 px), cut(작업 px, 0=없음), scale
   function vectorize(prob, w, h, o) {
     const b = blur(prob, w, h, o.smooth);
     let bin = new Uint8Array(w * h);
@@ -195,11 +274,11 @@ const Core = (() => {
     const r = { ...outline(bin, w, h, o), bin, cut: '' };
     if (o.cut > 0) {
       const c = offset(cleanup(Uint8Array.from(bin), w, h, { speck: 0, people: 0, hole: Infinity }), w, h, o.cut);
-      r.cut = outline(c, w, h, { ...o, corner: 0 }).d;
+      r.cut = outline(c, w, h, { ...o, corner: 0, target: 0, simplify: Math.max(o.simplify, 1) }).d;
     }
     return r;
   }
 
-  return { blur, label, cleanup, dist, offset, trace, simplify, toPath, vectorize };
+  return { blur, label, cleanup, dist, offset, trace, simplify, outline, vectorize, bez };
 })();
 if (typeof module !== 'undefined') module.exports = Core;
