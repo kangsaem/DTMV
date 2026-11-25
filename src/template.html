@@ -41,6 +41,7 @@ main{flex:1;display:grid;grid-template-columns:230px minmax(0,1fr) 300px;min-hei
 #pts{position:absolute;left:10px;top:10px;background:rgba(38,38,38,.88);border:1px solid #444;padding:4px 10px;font-size:13px;font-weight:700;display:none;font-variant-numeric:tabular-nums}
 #pts small{font-weight:400;color:var(--sub);margin-left:6px}
 #tools{position:absolute;right:10px;top:10px;display:flex;gap:2px}
+#tools .vsep{width:8px}
 #tools button{height:24px;font-size:11px;padding:0 10px}
 #hv{position:absolute;pointer-events:none;background:rgba(38,38,38,.92);border:1px solid #555;padding:2px 7px;font-size:11px;display:none;white-space:nowrap}
 #cv.paint{cursor:none}
@@ -110,9 +111,12 @@ input[type=range]::-moz-range-thumb{width:9px;height:15px;border-radius:0;backgr
     <div id="hv"></div>
     <div id="tools">
       <button data-t="view" class="b ov on" title="보기 (V)">보기</button>
-      <button data-t="1" class="b ov" title="브러시 (B) · 부분 브러시의 허용 오차·장력을 칠한 자리에 찍음">브러시</button>
-      <button data-t="0" class="b ov" title="지우개 (E) · 칠한 값을 지워 전체 값으로">지우개</button>
-      <button id="zclear" class="b ov" title="이 사진의 브러시 모두 지우기">비우기</button>
+      <button data-m="-" class="b ov" title="점 적게: 칠한 곳 허용 오차를 키움 (Alt+드래그 · 오른쪽 버튼 드래그)">−</button>
+      <button data-t="1" class="b ov" title="브러시 (B) · 드래그 = 점 많이, Alt·오른쪽 버튼 = 점 적게. 여러 번 칠하면 누적">브러시 +</button>
+      <button data-m="+" class="b ov" title="점 많이: 칠한 곳 허용 오차를 줄임">+</button>
+      <span class="vsep"></span>
+      <button data-t="0" class="b ov" title="지우개 (E) · 칠한 곳을 전체 값으로">지우개</button>
+      <button id="zclear" class="b ov" title="이 사진에 칠한 것 전체 지우기 (Ctrl+Z로 복구)">전체 지우기</button>
     </div>
     <div id="views">
       <button data-v="line" class="b ov on" title="벡터: 사진 위 벡터 선·점 (1)">벡터</button>
@@ -198,8 +202,8 @@ const GROUPS = [
     { k: 'curve', l: '연결', t: 'select', d: 'bezier', o: [['bezier', '베지어 곡선'], ['line', '직선']] },
   ]],
   ['부분 브러시', [
-    { k: 'btol', l: '허용 오차', t: 'range', min: .2, max: 6, s: .1, d: .5, f: 1, u: 'px', tip: '브러시로 칠할 때 찍히는 허용 오차. 칠한 뒤 바꿔도 이미 칠한 곳은 그대로 (다시 칠하면 덮어씀)' },
-    { k: 'bten', l: '장력', t: 'range', min: -30, max: 30, s: 1, d: 0, u: '%', tip: '브러시로 칠할 때 찍히는 장력' },
+    { k: 'bstr', l: '세기', t: 'range', min: 10, max: 60, s: 5, d: 30, u: '%', tip: '한 번 칠할 때 그 자리 허용 오차를 바꾸는 정도. 30% = 점 많이 ×0.7 / 점 적게 ×1.4 (여러 번 칠하면 누적, 0.2~8px)' },
+    { k: 'bten', l: '장력', t: 'range', min: -30, max: 30, s: 1, d: 0, z: '전체 값', u: '%', tip: '칠한 자리에 찍을 장력 (0 = 전체 장력 따름)' },
     { k: 'bsize', l: '브러시 크기', t: 'range', min: 5, max: 300, s: 5, d: 60, u: 'px', tip: '화면 기준 지름. [ ] 키로 조절' },
   ]],
   ['정리', [
@@ -309,7 +313,7 @@ function syncUI() {
   $('stage').className = 'bg-' + S.bg + ($('stage').classList.contains('drag') ? ' drag' : '');
   presetLabel();
 }
-const PREVIEW_ONLY = ['lineColor', 'lineW', 'bg', 'showPts', 'bsize', 'btol', 'bten'], OUTPUT_ONLY = ['svgMode', 'fillColor', 'strokeColor', 'strokeW', 'cutColor', 'pngScale', 'maskInv', 'prefix', 'suffix', 'feather'];
+const PREVIEW_ONLY = ['lineColor', 'lineW', 'bg', 'showPts', 'bsize', 'bstr', 'bten'], OUTPUT_ONLY = ['svgMode', 'fillColor', 'strokeColor', 'strokeW', 'cutColor', 'pngScale', 'maskInv', 'prefix', 'suffix', 'feather'];
 let tm = 0;
 function changed(k) {
   const s = SPEC[k]; if (s && s.t === 'range') $('v_' + k).textContent = fmt(s, S[k]);
@@ -580,6 +584,7 @@ function update() {
   if (cur.key !== key) { cur.prob = probAt(cur.it.mask, ww, wh); cur.key = key; cur.ww = ww; cur.wh = wh; }
   const t = performance.now();
   res = Core.vectorize(cur.prob, ww, wh, opts(W / ww, cur.it));
+  if (cur.it.zg) cur.it.zcDirty = true;   // 칠한 색은 전체 오차 대비라 다시 그림
   res.path = new Path2D(res.d); res.cutPath = res.cut ? new Path2D(res.cut) : null; cur.alpha = null;
   $('stats').textContent = `${W}×${H} · 작업 ${ww}×${wh} · ${(performance.now() - t).toFixed(0)}ms`;
   $('pts').innerHTML = `점 ${res.nodes.toLocaleString()}개<small>패스 ${res.paths} · 오차 ${res.tol.toFixed(1)}px${S.target && res.tol > S.simplify ? ' (자동)' : ''}</small>`;
@@ -603,13 +608,16 @@ function draw() {
     g.save(); g.clip(res.path, 'evenodd'); g.drawImage(cur.bmp, 0, 0); g.restore();
     g.lineWidth = S.lineW / s; g.strokeStyle = S.lineColor; g.lineJoin = 'round'; g.stroke(res.path);
     if (res.cutPath) { g.setLineDash([6 / s, 4 / s]); g.strokeStyle = S.cutColor; g.stroke(res.cutPath); g.setLineDash([]); }
-    if (cur.it.zgN || tool !== 'view') drawZones(g);
+    if (tool !== 'view') drawZones(g);
     if (S.showPts) {   // 고정점: 흰 사각 + 선 색 테두리
       const a = res.anchors, q = 3.5 / s; g.fillStyle = '#fff'; g.strokeStyle = S.lineColor; g.lineWidth = 1 / s;
       for (let i = 0; i < a.length; i += 2) { g.fillRect(a[i] - q, a[i + 1] - q, 2 * q, 2 * q); g.strokeRect(a[i] - q, a[i + 1] - q, 2 * q, 2 * q); }
     }
     g.restore();
-    if (tool !== 'view' && mouse) { g.beginPath(); g.arc(mouse[0], mouse[1], S.bsize / 2, 0, 7); g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.stroke(); g.strokeStyle = '#000'; g.lineWidth = .5; g.stroke(); }
+    if (tool !== 'view' && mouse) {
+      const [mx, my] = mouse; g.beginPath(); g.arc(mx, my, S.bsize / 2, 0, 7); g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.stroke(); g.strokeStyle = '#000'; g.lineWidth = .5; g.stroke();
+      if (tool === '1') { const m = painting ? strokeMode : (altDown ? (bmode === '+' ? '-' : '+') : bmode); g.fillStyle = '#fff'; g.font = '700 16px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(m === '+' ? '+' : '−', mx, my); }
+    }
     return;
   }
   if (view === 'vmask') {   // SVG 패스를 그대로 채워서 (저장 없이 SVG 모양 확인)
@@ -629,14 +637,14 @@ function draw() {
 /* ================= 부분 브러시 ================= */
 let tool = 'view', mouse = null, painting = null;
 function ensureZg(it, W, H) {   // 긴 변 512 격자: tol(0 = 칠 안 함) · ten
-  if (!it.zg) { const k = 512 / Math.max(W, H), gw = Math.max(1, Math.round(W * k)), gh = Math.max(1, Math.round(H * k)); it.zg = { gw, gh, tol: new Float32Array(gw * gh), ten: new Float32Array(gw * gh) }; it.zgN = 0; }
+  if (!it.zg) { const k = 512 / Math.max(W, H), gw = Math.max(1, Math.round(W * k)), gh = Math.max(1, Math.round(H * k)); it.zg = { gw, gh, tol: new Float32Array(gw * gh), ten: new Float32Array(gw * gh).fill(NaN) }; it.zgN = 0; }
   return it.zg;
 }
 const brushSnap = it => ({ k: 'b', it, tol: it.zg.tol.slice(), ten: it.zg.ten.slice() });
 function zgCount(it) { let n = 0; for (const v of it.zg.tol) if (v > 0) n++; it.zgN = n; }
-function zcol(v) {   // 세밀(0.2px) = 진한 파랑 → 단순(6px) = 연한 노랑
-  const k = Math.min(1, Math.max(0, Math.log(v / .2) / Math.log(30)));
-  return [74 + (242 - 74) * k, 143 + (201 - 143) * k, 224 + (76 - 224) * k, 150 - 80 * k];
+function zcol(v) {   // 전체 허용 오차 대비: 작을수록(점 많이) 진한 파랑, 클수록(점 적게) 노랑
+  const q = Math.log(v / S.simplify) / Math.log(4), k = Math.min(1, Math.abs(q));
+  return q < 0 ? [74, 143, 224, 50 + 110 * k] : [242, 201, 76, 50 + 110 * k];
 }
 function drawZones(g) {   // 이미지 좌표계(translate·scale 된 상태)에서 호출
   const it = cur.it, zg = ensureZg(it, cur.bmp.width, cur.bmp.height);
@@ -651,11 +659,19 @@ function gridAt(x, y) {
   const W = cur.bmp.width, zg = ensureZg(cur.it, W, cur.bmp.height), v = cur.vw, k = zg.gw / W;
   return { zg, gx: (x - v.ox) / v.s * k, gy: (y - v.oy) / v.s * k, r: S.bsize / 2 / v.s * k };
 }
-function paintAt(x, y) {
-  const { zg, gx, gy, r } = gridAt(x, y), tv = tool === '1' ? S.btol : 0, nv = tool === '1' ? S.bten / 100 : 0;
+let bmode = '+', touched = null, strokeMode = '+';   // bmode = 버튼으로 고른 방향, strokeMode = 이번 획(Alt·오른쪽 버튼이면 반대)
+function paintAt(x, y) {   // 누적형: 한 획에서 칸마다 한 번만, 오차 ×(1−세기) 또는 ÷(1−세기)
+  const { zg, gx, gy, r } = gridAt(x, y), erase = tool === '0', f = strokeMode === '+' ? 1 - S.bstr / 100 : 1 / (1 - S.bstr / 100);
   for (let yy = Math.max(0, Math.floor(gy - r)); yy <= Math.min(zg.gh - 1, Math.ceil(gy + r)); yy++)
-    for (let xx = Math.max(0, Math.floor(gx - r)); xx <= Math.min(zg.gw - 1, Math.ceil(gx + r)); xx++)
-      if ((xx + .5 - gx) ** 2 + (yy + .5 - gy) ** 2 <= r * r) { zg.tol[yy * zg.gw + xx] = tv; zg.ten[yy * zg.gw + xx] = nv; }
+    for (let xx = Math.max(0, Math.floor(gx - r)); xx <= Math.min(zg.gw - 1, Math.ceil(gx + r)); xx++) {
+      if ((xx + .5 - gx) ** 2 + (yy + .5 - gy) ** 2 > r * r) continue;
+      const k = yy * zg.gw + xx;
+      if (erase) { zg.tol[k] = 0; zg.ten[k] = NaN; continue; }
+      if (touched[k]) continue; touched[k] = 1;
+      const base = zg.tol[k] > 0 ? zg.tol[k] : S.simplify;
+      zg.tol[k] = Math.min(8, Math.max(.2, base * f));
+      if (S.bten) zg.ten[k] = S.bten / 100;
+    }
   cur.it.zcDirty = true;
 }
 function hover(x, y) {   // 칠한 자리 값 표시
@@ -665,26 +681,30 @@ function hover(x, y) {   // 칠한 자리 값 표시
   const k = ix >= 0 && iy >= 0 && ix < zg.gw && iy < zg.gh ? iy * zg.gw + ix : -1;
   if (k < 0 || !(zg.tol[k] > 0)) { h.style.display = 'none'; return; }
   const tn = Math.round(zg.ten[k] * 100);
-  h.textContent = `${zg.tol[k].toFixed(1)}px · ${tn > 0 ? '+' : ''}${tn}%`; h.style.left = (x + 14) + 'px'; h.style.top = (y + 14) + 'px'; h.style.display = 'block';
+  h.textContent = `${zg.tol[k].toFixed(2)}px` + (isNaN(zg.ten[k]) ? '' : ` · 장력 ${tn > 0 ? '+' : ''}${tn}%`); h.style.left = (x + 14) + 'px'; h.style.top = (y + 14) + 'px'; h.style.display = 'block';
 }
 function setTool(t) {
-  tool = t; [...$('tools').querySelectorAll('[data-t]')].forEach(b => b.classList.toggle('on', b.dataset.t === t));
-  $('cv').classList.toggle('paint', t !== 'view'); if (t !== 'view' && view !== 'line') setView('line'); else draw();   // 칠하기는 벡터 보기에서
+  tool = t;
+  [...$('tools').querySelectorAll('[data-t]')].forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  [...$('tools').querySelectorAll('[data-m]')].forEach(b => b.classList.toggle('on', t === '1' && b.dataset.m === bmode));
+  $('tools').querySelector('[data-t="1"]').textContent = '브러시 ' + (bmode === '+' ? '+' : '−');
+  $('cv').classList.toggle('paint', t !== 'view'); if (t !== 'view' && view !== 'line') setView('line'); else draw();
 }
-$('tools').onclick = async e => {
+$('tools').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.id === 'zclear') {
-    if (!cur || !cur.it.zgN) return;
-    if (await popup('이 사진의 브러시를 모두 지울까요?', [['cancel', '취소'], ['ok', '지우기', 'red']]) !== 'ok') return;
-    pushHist(brushSnap(cur.it)); cur.it.zg.tol.fill(0); cur.it.zg.ten.fill(0); cur.it.zgN = 0; cur.it.zcDirty = true; update(); return;
+    if (!cur || !cur.it.zgN) return flash('칠한 곳 없음');
+    pushHist(brushSnap(cur.it)); cur.it.zg.tol.fill(0); cur.it.zg.ten.fill(NaN); cur.it.zgN = 0; cur.it.zcDirty = true; update(); flash('전체 지우기 · Ctrl+Z로 복구'); return;
   }
+  if (b.dataset.m) { bmode = b.dataset.m; setTool('1'); return; }
   setTool(b.dataset.t);
 };
 const cvPos = e => { const r = $('cv').getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
 $('cv').addEventListener('pointerdown', e => {
   if (tool === 'view' || !cur || !cur.it.mask || !cur.vw) return;
   $('cv').setPointerCapture(e.pointerId); commitHist();
-  ensureZg(cur.it, cur.bmp.width, cur.bmp.height); painting = brushSnap(cur.it);
+  const zg = ensureZg(cur.it, cur.bmp.width, cur.bmp.height); painting = brushSnap(cur.it); touched = new Uint8Array(zg.gw * zg.gh);
+  strokeMode = (e.altKey || e.button === 2) ? (bmode === '+' ? '-' : '+') : bmode;
   mouse = cvPos(e); paintAt(...mouse); draw();
 });
 $('cv').addEventListener('pointermove', e => {
@@ -693,6 +713,7 @@ $('cv').addEventListener('pointermove', e => {
   if (tool !== 'view') draw();
   hover(...mouse);
 });
+$('cv').addEventListener('contextmenu', e => { if (tool !== 'view') e.preventDefault(); });
 $('cv').addEventListener('pointerleave', () => { mouse = null; $('hv').style.display = 'none'; if (tool !== 'view') draw(); });
 const endPaint = () => {
   if (!painting) return;
@@ -751,7 +772,10 @@ $('sSvg').onclick = () => saveOne('svg'); $('sPng').onclick = () => saveOne('png
 $('sZip').onclick = saveZip;
 function setView(v) { view = v; [...$('views').querySelectorAll('button')].forEach(x => x.classList.toggle('on', x.dataset.v === v)); draw(); }
 $('views').onclick = e => { const b = e.target.closest('button'); if (b) setView(b.dataset.v); };
+let altDown = false;
+document.addEventListener('keyup', e => { if (e.key === 'Alt') { altDown = false; if (tool !== 'view') { e.preventDefault(); draw(); } } });
 document.addEventListener('keydown', e => {
+  if (e.key === 'Alt') { altDown = true; if (tool !== 'view') { e.preventDefault(); draw(); } return; }
   if ($('pop').classList.contains('open')) return;
   if ((e.ctrlKey || e.metaKey) && !e.target.matches('input[type=text]')) {
     const k = e.key.toLowerCase();

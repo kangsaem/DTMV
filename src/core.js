@@ -268,7 +268,8 @@ const Core = (() => {
     for (let i = 0; i < n; i++) {   // 브러시로 찍은 값(tol>0)이 있으면 그 값, 없으면 전체 값
       let k = -1;
       if (zg) { const gx = Math.min(zg.gw - 1, Math.max(0, Math.floor(p[i][0] * zg.gw / w))), gy = Math.min(zg.gh - 1, Math.max(0, Math.floor(p[i][1] * zg.gh / h))); k = gy * zg.gw + gx; }
-      if (k >= 0 && zg.tol[k] > 0) { tol[i] = zg.tol[k]; ten[i] = zg.ten[k]; } else { tol[i] = o.simplify; ten[i] = o.tension || 0; }
+      tol[i] = k >= 0 && zg.tol[k] > 0 ? zg.tol[k] : o.simplify;                       // 칠한 칸 = 그 칸 오차
+      ten[i] = k >= 0 && !isNaN(zg.ten[k]) ? zg.ten[k] : (o.tension || 0);             // 장력 NaN = 전체 값 따름
     }
     if (o.alloc > 0 && n > 20) {   // 곡률 큰 곳 = 오차 작게(점 촘촘), 완만한 곳 = 오차 크게
       const far = (i, st) => { let k = 1, q = p[(i + st + n) % n]; while (k < 14 && len(sub(q, p[i])) < 5) { k++; q = p[((i + st * k) % n + n) % n]; } return q; };
