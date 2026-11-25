@@ -76,6 +76,7 @@ async def main():
     await pg.click('#tools [data-m="+"]'); a1 = await stroke(); a2 = await stroke()
     await pg.mouse.move(bb['x'] + bb['width'] * .4, bb['y'] + 150); await pg.wait_for_timeout(100); hv = await pg.text_content('#hv')
     await pg.screenshot(path=OUT('5_brush.png'))
+    await pg.keyboard.press('2'); await pg.wait_for_timeout(300); await pg.mouse.move(bb['x'] + bb['width'] * .45, bb['y'] + 160); await pg.wait_for_timeout(200); await pg.screenshot(path=OUT('7_vmask_brush.png')); await pg.keyboard.press('1')
     a3 = await stroke(alt=True)
     await pg.click('#tools [data-m="-"]'); a4 = await stroke(); a5 = await stroke()
     await pg.click('#zclear'); await pg.wait_for_timeout(500); a6 = (await pg.text_content('#pts')).split('개')[0] + ' 표시칸 ' + str(await pg.evaluate("document.querySelector('#cv') && 0"))
