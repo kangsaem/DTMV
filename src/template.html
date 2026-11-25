@@ -167,8 +167,8 @@ document.getElementById('bevel').textContent =
 const GROUPS = [
   ['경계', [
     { k: 'thr', l: '경계 기준', t: 'range', min: .05, max: .95, s: .05, d: .5, f: 2, tip: '낮추면 잔머리·반투명 부분까지 포함, 높이면 안쪽을 땀' },
-    { k: 'offset', l: '확장·축소', t: 'range', min: -40, max: 40, s: 1, d: 0, u: 'px', tip: '외곽선을 바깥(+)·안쪽(−)으로 이동 (원본 픽셀)' },
-    { k: 'feather', l: '가장자리', t: 'range', min: 0, max: 10, s: 1, d: 1, u: 'px', tip: 'PNG·마스크 경계를 흐리는 정도' },
+    { k: 'offset', l: '확장·축소', t: 'range', min: -10, max: 10, s: 1, d: 0, u: 'px', tip: '외곽선을 바깥(+)·안쪽(−)으로 이동 (원본 픽셀)' },
+    { k: 'feather', l: '페더', t: 'range', min: 0, max: 10, s: 1, d: 1, u: 'px', tip: 'PNG·마스크 경계를 흐리는 정도' },
   ]],
   ['곡선', [
     { k: 'smooth', l: '부드럽게', t: 'range', min: 0, max: 12, s: 1, d: 2, u: 'px', tip: '외곽의 잔물결 제거' },
@@ -212,6 +212,7 @@ const BUILTIN = [
   { name: '머리카락 살리기', v: { thr: .3, smooth: 0, simplify: .6, feather: 0, speck: 1 } },
   { name: '칼선용', v: { smooth: 6, simplify: 3, people: '1', holeAll: true, offset: 4, cut: 20, svgMode: 'both', fillColor: '#ffffff', strokeColor: '#000000', strokeW: 1 } },
   { name: '일러 편집용', v: { smooth: 4, simplify: 3, corner: 45, speck: 3, hole: 1 } },
+  { name: '단순 실루엣', v: { thr: .25, offset: 0, feather: 0, smooth: 0, simplify: 6, corner: 0, curve: 'bezier', speck: 20, hole: 0, holeAll: false, people: '0' } },
 ].map(p => ({ ...p, builtin: true, v: { ...DEF, ...p.v } }));
 
 const $ = id => document.getElementById(id);
@@ -220,6 +221,24 @@ const store = { get(k, d) { try { const v = localStorage.getItem(k); return v ? 
 let S = { ...DEF, ...store.get('vman.last', {}).v };
 let presetName = store.get('vman.last', {}).name || '기본';
 let userPresets = store.get('vman.presets', []);
+
+/* ================= 되돌리기 (Ctrl+Z / Ctrl+Shift+Z·Ctrl+Y, 최대 50개) ================= */
+const HMAX = 50; let hist = [], fut = [], pend = null, ht = 0;
+const snapNow = () => JSON.stringify({ S, n: presetName });
+function snap() { // 바꾸기 직전에 호출. 0.4초 안의 연속 변경은 하나로
+  if (pend === null) pend = snapNow();
+  clearTimeout(ht); ht = setTimeout(commitHist, 400);
+}
+function commitHist() {
+  clearTimeout(ht);
+  if (pend !== null && pend !== snapNow()) { hist.push(pend); if (hist.length > HMAX) hist.shift(); fut = []; }
+  pend = null;
+}
+function restore(js) { const o = JSON.parse(js); S = { ...DEF, ...o.S }; presetName = o.n; syncUI(); store.set('vman.last', { name: presetName, v: S }); if (cur) cur.alpha = null; update(); }
+function undo() { commitHist(); if (!hist.length) return flash('되돌릴 것 없음'); fut.push(snapNow()); restore(hist.pop()); flash(`되돌리기 · 남은 ${hist.length}`); }
+function redo() { commitHist(); if (!fut.length) return flash('다시 할 것 없음'); hist.push(snapNow()); restore(fut.pop()); flash(`다시 실행 · 남은 ${fut.length}`); }
+let ft = 0;
+function flash(t) { busy(t); clearTimeout(ft); ft = setTimeout(() => { if ($('busy').textContent === t) busy(''); }, 900); }
 
 /* ================= 설정 화면 ================= */
 const fmt = (s, v) => s.t === 'range' ? (+v).toFixed(s.f || 0) + (s.u || '') : '';
@@ -242,10 +261,10 @@ function buildGroups() {
   });
   Object.values(SPEC).forEach(s => {
     const el = $('k_' + s.k);
-    el.addEventListener('input', () => { S[s.k] = s.t === 'range' ? +el.value : s.t === 'check' ? el.checked : el.value; changed(s.k); });
+    el.addEventListener('input', () => { snap(); S[s.k] = s.t === 'range' ? +el.value : s.t === 'check' ? el.checked : el.value; changed(s.k); });
   });
   // 라벨 두 번 클릭 = 기본값
-  $('groups').querySelectorAll('label[data-k]').forEach(l => { l.title = '두 번 클릭: 기본값'; l.ondblclick = () => { S[l.dataset.k] = DEF[l.dataset.k]; syncUI(); changed(l.dataset.k); }; });
+  $('groups').querySelectorAll('label[data-k]').forEach(l => { l.title = '두 번 클릭: 기본값'; l.ondblclick = () => { snap(); S[l.dataset.k] = DEF[l.dataset.k]; syncUI(); changed(l.dataset.k); }; });
 }
 function syncUI() {
   Object.values(SPEC).forEach(s => {
@@ -276,7 +295,7 @@ function presetLabel() {
   const p = findPreset(presetName), dirty = !p || !same(p.v, S);
   $('presetBtn').textContent = `프리셋: ${presetName}${dirty ? ' *' : ''} ▾`;
 }
-function applyPreset(p) { S = { ...DEF, ...p.v }; presetName = p.name; syncUI(); store.set('vman.last', { name: presetName, v: S }); update(); }
+function applyPreset(p) { commitHist(); snap(); S = { ...DEF, ...p.v }; presetName = p.name; syncUI(); store.set('vman.last', { name: presetName, v: S }); update(); }
 function drawPList() {
   $('plist').innerHTML = allPresets().map((p, i) => `<div class="pi${p.name === presetName ? ' cur' : ''}" data-i="${i}"><span></span>${p.builtin ? '<small>기본 제공</small>' : ''}</div>`).join('') +
     `<div class="pact"><button class="b" data-a="del">삭제</button><button class="b" data-a="reset">기본값으로</button><button class="b" data-a="exp">내보내기</button><button class="b" data-a="imp">가져오기</button></div>`;
@@ -607,7 +626,13 @@ $('sZip').onclick = saveZip;
 function setView(v) { view = v; [...$('views').children].forEach(x => x.classList.toggle('on', x.dataset.v === v)); draw(); }
 $('views').onclick = e => { const b = e.target.closest('button'); if (b) setView(b.dataset.v); };
 document.addEventListener('keydown', e => {
-  if (e.target.matches('input[type=text]') || $('pop').classList.contains('open')) return;
+  if ($('pop').classList.contains('open')) return;
+  if ((e.ctrlKey || e.metaKey) && !e.target.matches('input[type=text]')) {
+    const k = e.key.toLowerCase();
+    if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
+    if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); redo(); return; }
+  }
+  if (e.target.matches('input[type=text]')) return;
   const v = { 1: 'line', 2: 'cut', 3: 'mask' }[e.key]; if (v) setView(v);
   if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && items.length && !e.target.matches('select,input')) { e.preventDefault(); select(Math.max(0, Math.min(items.length - 1, sel + (e.key === 'ArrowDown' ? 1 : -1)))); }
 });

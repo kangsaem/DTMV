@@ -145,7 +145,7 @@ const Core = (() => {
   }
 
   // SVG path d 문자열. curve=true면 Catmull-Rom → 3차 베지어. corner(0~100) = 꺾임이 큰 점은 모서리로 유지(0=끔)
-  function toPath(loops, s, curve, corner) {
+  function toPath(loops, s, curve, corner, W, H) {
     const f = v => (Math.round(v * s * 10) / 10).toString();
     const lim = corner > 0 ? Math.cos((135 - corner) * Math.PI / 180) : -2; // 진행 방향 cos 이 이 값보다 작으면 모서리
     let d = '', nodes = 0;
@@ -160,6 +160,9 @@ const Core = (() => {
         const cs = (ux * vx + uy * vy) / ((Math.hypot(ux, uy) * Math.hypot(vx, vy)) || 1);
         if (cs < lim) sharp[i] = 1;
       }
+      // 사진 가장자리 위의 점은 항상 모서리(곡선이 가장자리를 둥글게 깎지 않게)
+      const edge = new Uint8Array(n);
+      if (W) for (let i = 0; i < n; i++) { const [x, y] = p[i]; if (x <= 1 || y <= 1 || x >= W - 1 || y >= H - 1) sharp[i] = edge[i] = 1; }
       d += `M${f(p[0][0])} ${f(p[0][1])}`;
       for (let i = 0; i < n; i++) {
         const j = (i + 1) % n, p0 = p[(i - 1 + n) % n], p1 = p[i], p2 = p[j], p3 = p[(i + 2) % n];
@@ -167,6 +170,7 @@ const Core = (() => {
         // 접선 길이를 구간 길이의 1/3로 제한 → 모서리에서 튀는 고리 방지. 모서리 점은 접선 0
         const seg = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / 3;
         const cl = (x, y) => { const l = Math.hypot(x, y); return l > seg && l > 0 ? [x * seg / l, y * seg / l] : [x, y]; };
+        if (edge[i] || edge[j]) { d += `L${f(p2[0])} ${f(p2[1])}`; continue; } // 가장자리에 닿는 구간 = 직선
         const [ax, ay] = sharp[i] ? [0, 0] : cl((p2[0] - p0[0]) / 6, (p2[1] - p0[1]) / 6);
         const [bx, by] = sharp[j] ? [0, 0] : cl((p3[0] - p1[0]) / 6, (p3[1] - p1[1]) / 6);
         d += `C${f(p1[0] + ax)} ${f(p1[1] + ay)} ${f(p2[0] - bx)} ${f(p2[1] - by)} ${f(p2[0])} ${f(p2[1])}`;
@@ -178,7 +182,7 @@ const Core = (() => {
 
   function outline(bin, w, h, o) {
     const loops = trace(bin, w, h, 8).map(l => simplify(l, o.simplify)).filter(l => l.length >= 3);
-    return toPath(loops, o.scale, o.curve, o.corner || 0);
+    return toPath(loops, o.scale, o.curve, o.corner || 0, w, h);
   }
   // 전체: 확률 마스크(0..1, w×h) → {d, nodes, paths, bin, cut}
   // o: threshold, smooth, simplify, curve, corner, speck, hole, people, offset(작업 px), cut(작업 px, 0=없음), scale

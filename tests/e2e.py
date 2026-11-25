@@ -51,6 +51,15 @@ async def main():
     for sel, nm in [('#sSvg', 'a.svg'), ('#sPng', 'a.png'), ('#sMask', 'm.png'), ('#sZip', 'a.zip')]:
       async with pg.expect_download() as d: await pg.click(sel)
       dl = await d.value; await dl.save_as(OUT(nm)); print('dl', dl.suggested_filename, os.path.getsize(OUT(nm)))
+    # 되돌리기: 슬라이더 3번 변경 → Ctrl+Z 3번 → 처음 값, Ctrl+Shift+Z → 다시
+    v0 = await pg.input_value('#k_thr')
+    for v in ['0.3', '0.4', '0.6']:
+      await pg.eval_on_selector('#k_thr', f"(e)=>{{e.value='{v}';e.dispatchEvent(new Event('input'))}}"); await pg.wait_for_timeout(500)
+    await pg.mouse.click(700, 400)
+    for _ in range(3): await pg.keyboard.press('Control+z'); await pg.wait_for_timeout(100)
+    u = await pg.input_value('#k_thr'); await pg.keyboard.press('Control+Shift+z'); await pg.wait_for_timeout(100)
+    print('9 undo:', v0, '→', u, '| redo →', await pg.input_value('#k_thr'), '| 페더 라벨:', await pg.text_content('label[for=k_feather]'), '| 확장 범위:', await pg.get_attribute('#k_offset', 'max'))
+    await pg.click('#presetBtn'); print('10 presets:', [await e.text_content() for e in await pg.query_selector_all('#plist .pi span')]); await pg.mouse.click(700, 400)
     # 새로고침 후 마지막 설정 기억
     await pg.reload(); await pg.wait_for_timeout(500)
     print('8 reload:', await pg.text_content('#presetBtn'), await pg.input_value('#k_cut'))
