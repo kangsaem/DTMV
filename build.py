@@ -7,6 +7,7 @@ t = t.replace("MODEL_URL_PH", MODEL).replace("/*CORE*/", (R / "src/core.js").rea
 ver = (R / "VERSION").read_text().strip()
 t = t.replace("__VER__", ver)
 (R / "web/vectorman.html").write_text(t, encoding="utf-8")
+(R / "index.html").write_text(t, encoding="utf-8")   # GitHub Pages(브랜치 배포) 첫 화면 = 웹 버전
 print("built web/vectorman.html", ver)
 
 # PC 엔진용 화면: 인터넷 없이 (ONNX Runtime Web 빼고, JSZip 은 /vendor/ 에서)

@@ -100,12 +100,12 @@ input[type=range]::-moz-range-thumb{width:9px;height:15px;border-radius:0;backgr
 #pvGroup .grp{display:block}
 
 /* v0.8.0 배치: 가는 윗줄(파일 이름) | 아이콘 줄 · 설정(전부 펼침) · 작업대 + 하단 메뉴 · 작업 파일 + 결과·저장 */
-body{grid-template-rows:26px minmax(0,1fr)}
+body{grid-template-rows:minmax(0,1fr)}
 #topline{display:flex;align-items:center;gap:12px;padding:0 12px;border-bottom:1px solid var(--line);background:#1f1f1f;font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden}
 #topline b{color:var(--ink);font-weight:500;overflow:hidden;text-overflow:ellipsis}
 #topline .key{border:1px solid #6e5a1e;color:var(--key);padding:0 8px;background:#2b2614}
 .rlogo{display:flex;justify-content:center;padding:8px 2px 12px;border-bottom:1px solid var(--line);margin-bottom:4px}.rlogo svg{height:12px;width:auto}
-#mid{grid-template-rows:minmax(0,1fr) 48px}
+#mid{grid-template-rows:26px minmax(0,1fr) 48px}
 #bot{display:flex;align-items:center;gap:6px;padding:0 10px;border-top:1px solid var(--line);min-width:0;overflow:hidden}
 #bot button{height:32px;min-width:32px;padding:0 9px;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;flex:none;font-size:12px}
 #bot button svg{width:17px;height:17px}
@@ -155,12 +155,11 @@ main{grid-template-columns:64px 330px minmax(0,1fr) 360px}
 #pop .btns{display:flex;justify-content:flex-end;gap:8px;margin:0}
 #pop .btns button{min-width:72px;height:30px}
 @media(max-width:1100px){main{grid-template-columns:52px 260px minmax(0,1fr) 270px}#bot .seg button{padding:0 6px}}
-@media(max-width:800px){body{overflow:auto;grid-template-rows:26px auto}main{grid-template-columns:1fr}#rail{flex-direction:row;overflow-x:auto}#mid{grid-template-rows:60vh auto}#bot{flex-wrap:wrap;padding:6px}#side{min-height:70vh}}
+@media(max-width:800px){body{overflow:auto;grid-template-rows:auto}main{grid-template-columns:1fr}#rail{flex-direction:row;overflow-x:auto}#mid{grid-template-rows:26px 60vh auto}#bot{flex-wrap:wrap;padding:6px}#side{min-height:70vh}}
 </style>
 <style id="bevel"></style>
 </head>
 <body>
-<div id="topline"><b id="cname">사진 없음</b><span id="cinfo"></span><span id="ckey"></span><span class="grow"></span><span class="ver">Vector Man v__VER__</span></div>
 <input id="fin" type="file" accept="image/*" multiple hidden>
 <main>
   <nav id="rail">
@@ -194,6 +193,7 @@ main{grid-template-columns:64px 330px minmax(0,1fr) 360px}
     </div>
   </aside>
   <section id="mid">
+    <div id="topline"><b id="cname">사진 없음</b><span id="cinfo"></span><span id="ckey"></span><span class="grow"></span><span class="ver">Vector Man v__VER__</span></div>
     <div id="stage">
       <canvas id="cv"></canvas>
       <div id="empty">사진을 끌어다 놓기</div>

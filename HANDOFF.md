@@ -6,7 +6,7 @@
 다음 대화는 이 문서를 기준으로 이어서 작업한다.
 
 - 저장소: **kangsaem/DTMV** (11/26 vman → DTMV 로 저장소 이름만 변경 · zip 이름 `vman-update-*`, 파일명, 제품명 Vector Man 은 그대로). 나중 도메인 후보: `vm.scubob.com`(추천) 또는 `scubob.com/vm`, 호스팅은 GitHub 그대로.
-- 웹 배포: `.github/workflows/pages.yml` → GitHub Pages (`web/vectorman.html` → `index.html`, 루트 `CNAME` = vm.scubob.com). web/ 이 바뀌거나 'PC 엔진 빌드'가 끝나면 자동. 설정: Settings → Pages → Source = **GitHub Actions**, DNS `CNAME vm → kangsaem.github.io`, Enforce HTTPS.
+- 웹 배포: GitHub Pages **브랜치 배포(main / 루트)** — `build.py` 가 루트 `index.html`(= web 버전)도 만듦, `.nojekyll`, 루트 `CNAME` = vm.scubob.com. DNS `CNAME vm → kangsaem.github.io`, Enforce HTTPS.
 
 ## 0. 현재 상태
 - 버전: `VERSION` 파일. 결과물: `web/vectorman.html` (한 파일, 크롬에서 열기)
@@ -64,6 +64,7 @@
 ## 6. 변경 이력 (최신순)
 - v0.8.1 (2026-11-26) 설정 = 접힘(아이콘 누르면 그 묶음만 펼침·나머지 자동 접힘 → 아이콘 옆에서 펼쳐짐, 제목 줄 = 하나씩 펼침/접음, [전체 펴기/접기] — 전체 펴기 상태에선 아이콘 = 스크롤·강조, 상태 기억 `vman.open`), 배경색 칩 = **사진 영역 배경**(벡터·비트맵 마스크의 검정 부분, 비트맵 보기의 투명 부분 · '기본' = 마스크 검정/비트맵 체크 · 작업대 모눈은 그대로, `vman.bg2`)
 - v0.8.2 (2026-11-26) 배경색 칩 → **벡터 보기에도 적용**(패스 바깥 = 고른 색, 안 = 사진 · '기본' = 지금처럼 사진 어둡게), 저장소 이름 DTMV 반영
+- v0.8.3 (2026-11-26) 파일 이름 줄 → 작업대 바로 위(가운데 칸 맨 위)로 이동, 루트 `index.html` 생성(Pages 주소에서 바로 실행)
 - v0.8.0 (2026-11-26) 화면 재배치(1920×1080 기준): 맨 위 가는 줄(26px · 파일 이름 · 크기 · 상태 · 브러시 안내 · 버전), 상단 메뉴 → 작업대 아래 줄(되돌리기 · 보기 4개 · 브러시 도구 · 엔진 상태), 로고 → 아이콘 줄 맨 위, 설정 = 모든 묶음 펼침(프리셋·엔진 → 경계 → 곡선 → 부분 브러시 → 정리 → 출력) + 아이콘 누르면 그 묶음으로 스크롤·파랑 강조(직접 스크롤해도 따라감), 오른쪽 = 작업 파일 목록(남는 높이 전부) + 아래 고정 결과·저장(전체 ZIP 이 바닥), 미리보기 설정 → 작업대 왼쪽 아래, 작업대 배경색(모눈·흰·회·검·크로마 초록·체크·색 고르기, `vman.bg`) → 오른쪽 아래, 파일명 = 원래 이름 + 입력 단어(기본 `_vm`) + .svg / .png / _mask.png (앞 글자 설정 없앰), 작업 해상도 → 경계 묶음, 2400px 이상은 패널 넓게 · 1400px 이하는 좁게(전체 지우기 = 아이콘)
 - zip 첫 시험 11/26 14:5x 통과(run 45763105231): `update/vman-update-test.zip`(맨 위 'vman/' 벗김) → `docs/ZIP_TEST.txt` 넣음 · zip 지움 · 커밋 073efd3 → 빌드 '버전 그대로 — 빌드·확인만'. 첫 시도는 풀기 커밋 단계가 .gitignore 경로(pc/app) 지정으로 실패 → 워크플로 고침. v0.7.3 릴리스는 push 로 자동(0.7.3 > 0.7.2).
 - v0.7.3 (2026-11-26) 배포 = DTMC 방식(update/ 에 zip → 풀기·화면 다시 만들기·커밋 → exe 빌드 → VERSION 이 최근 릴리스보다 높으면 릴리스 pc-v<버전>, latest 표시). zip 안 폴더 이름 `VectorMan-v<버전>` + VERSION.txt. 빌드 서버 실행 확인은 기본 '켜지고 모델 올라오는 데까지'(사진 처리는 수동 실행 smoke 체크 때만 — CPU 로 수십 분)
