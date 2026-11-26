@@ -98,6 +98,46 @@ input[type=range]::-moz-range-thumb{width:9px;height:15px;border-radius:0;backgr
 .btns{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:18px}
 .btns button{height:32px}.btns .full{grid-column:1/-1}
 #pvGroup .grp{display:block}
+
+/* v0.8.0 배치: 가는 윗줄(파일 이름) | 아이콘 줄 · 설정(전부 펼침) · 작업대 + 하단 메뉴 · 작업 파일 + 결과·저장 */
+body{grid-template-rows:26px minmax(0,1fr)}
+#topline{display:flex;align-items:center;gap:12px;padding:0 12px;border-bottom:1px solid var(--line);background:#1f1f1f;font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden}
+#topline b{color:var(--ink);font-weight:500;overflow:hidden;text-overflow:ellipsis}
+#topline .key{border:1px solid #6e5a1e;color:var(--key);padding:0 8px;background:#2b2614}
+.rlogo{display:flex;justify-content:center;padding:8px 2px 12px;border-bottom:1px solid var(--line);margin-bottom:4px}.rlogo svg{height:12px;width:auto}
+#mid{grid-template-rows:minmax(0,1fr) 48px}
+#bot{display:flex;align-items:center;gap:6px;padding:0 10px;border-top:1px solid var(--line);min-width:0;overflow:hidden}
+#bot button{height:32px;min-width:32px;padding:0 9px;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;flex:none;font-size:12px}
+#bot button svg{width:17px;height:17px}
+.grp{display:block}.grp h2{display:none}.grp+.grp h2{display:block;margin-top:12px}
+.sec{padding:10px 10px 8px;border-bottom:1px solid #2e2e2e;transition:background .25s}
+.sec h3{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:13px;color:#ddd}.sec h3 svg{width:16px;height:16px;color:var(--sub)}
+.sec.hl{background:#2b3442;box-shadow:inset 3px 0 0 var(--edge)}.sec.hl h3 svg{color:var(--edge)}
+#setScroll{padding:0}
+#presetPane{display:block}
+#side .fa{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px;border-bottom:1px solid var(--line)}
+#side .fa button{height:32px;display:inline-flex;align-items:center;justify-content:center;gap:6px}#side .fa svg{width:16px;height:16px}
+#list{display:block;flex:1;min-height:80px;overflow:auto}
+.it{display:flex;width:auto;text-align:left;font-size:13px;gap:10px;align-items:center;padding:7px 10px;border-bottom:1px solid #2e2e2e;cursor:pointer;color:var(--ink)}
+.it:hover{background:#2c2c2c}.it.sel{background:var(--blue);box-shadow:inset 3px 0 0 var(--edge)}
+.it img{width:54px;height:40px;object-fit:cover;border:1px solid #444;flex:none;background:#111;margin:0}
+.it b{display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it small{display:block;font-size:11px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.it.sel small{color:#cfd8e6}.it small.err{color:#ff7b7b}
+#side .res{flex:none;padding:10px 10px 10px;border-top:1px solid var(--line)}
+#side .res .big{margin-top:0}#side .res .stat{margin-bottom:12px}
+#side .res .btns{margin-bottom:0}
+.nm{display:grid;grid-template-columns:64px minmax(0,1fr);gap:6px;align-items:center;font-size:12px;margin-bottom:4px}.nm label{color:#cfcfcf;text-align:right}
+.ex{font-size:11px;color:var(--sub);margin:0 0 10px 70px;word-break:break-all}.ex b{color:#fff;font-weight:600}
+#clear{height:24px;font-size:11px;padding:0 8px;font-weight:400}
+#pvBox,#bgBox{position:absolute;bottom:10px;background:rgba(35,35,35,.92);border:1px solid #444;padding:6px 8px;z-index:2;font-size:11px;color:var(--sub)}
+#pvBox{left:10px;width:250px;padding:6px 8px 2px}#pvBox .r{grid-template-columns:52px minmax(0,1fr) 40px;margin-bottom:2px;min-height:24px}#pvBox .r label{font-size:11px}
+#pvBox input[type=color]{height:22px}
+#bgBox{right:10px;display:flex;gap:4px;align-items:center}
+#bgBox button{width:22px;height:22px;padding:0;border:1px solid #666;min-width:0}#bgBox button.on{outline:2px solid var(--edge);outline-offset:1px}
+#bgBox input{width:22px;height:22px;padding:0;border:1px solid #666;cursor:pointer;background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red)}
+main{grid-template-columns:64px 330px minmax(0,1fr) 360px}
+@media(min-width:2400px){main{grid-template-columns:72px 360px minmax(0,1fr) 400px}}
+@media(max-width:1400px){main{grid-template-columns:56px 290px minmax(0,1fr) 300px}.hide-sm{display:none!important}#bot .lbl{display:none}#pvBox{width:210px}}
 #ctx{position:fixed;z-index:15;display:none;background:#262626;border:1px solid #555;padding:3px;min-width:150px}
 #ctx button{display:flex;justify-content:space-between;width:100%;background:none;border:0;text-align:left;height:26px;font-size:12px}
 #ctx button:hover{background:var(--blue)}#ctx small{color:var(--sub)}
@@ -109,44 +149,17 @@ input[type=range]::-moz-range-thumb{width:9px;height:15px;border-radius:0;backgr
 #pop input{margin-bottom:14px;height:28px}
 #pop .btns{display:flex;justify-content:flex-end;gap:8px;margin:0}
 #pop .btns button{min-width:72px;height:30px}
-@media(max-width:1100px){main{grid-template-columns:56px 250px minmax(0,1fr) 240px}#top .hide-sm{display:none}}
-@media(max-width:800px){body{overflow:auto;grid-template-rows:auto auto}#top{flex-wrap:wrap;padding:6px}main{grid-template-columns:1fr}#rail{flex-direction:row;overflow-x:auto}#mid{grid-template-rows:30px 60vh 96px}}
+@media(max-width:1100px){main{grid-template-columns:52px 260px minmax(0,1fr) 270px}#bot .seg button{padding:0 6px}}
+@media(max-width:800px){body{overflow:auto;grid-template-rows:26px auto}main{grid-template-columns:1fr}#rail{flex-direction:row;overflow-x:auto}#mid{grid-template-rows:60vh auto}#bot{flex-wrap:wrap;padding:6px}#side{min-height:70vh}}
 </style>
 <style id="bevel"></style>
 </head>
 <body>
-<div id="top">
-  <span class="logo" title="Vector Man (VM) · 사진 속 인물을 벡터로"><svg aria-label="VM" xmlns="http://www.w3.org/2000/svg" width="476" height="160" viewBox="75 65 476 160"><defs><linearGradient id="g0" gradientUnits="userSpaceOnUse" x1="103" y1="70" x2="187" y2="220"><stop offset="0.62" stop-color="#5BB4F5"/><stop offset="1" stop-color="#2F86D0"/></linearGradient><linearGradient id="g1" gradientUnits="userSpaceOnUse" x1="187" y1="220" x2="271" y2="70"><stop offset="0.62" stop-color="#FE5C36"/><stop offset="1" stop-color="#AE301A"/></linearGradient><linearGradient id="g2" gradientUnits="userSpaceOnUse" x1="271" y1="70" x2="355" y2="220"><stop offset="0.62" stop-color="#FE5C36"/><stop offset="1" stop-color="#AE301A"/></linearGradient><linearGradient id="g3" gradientUnits="userSpaceOnUse" x1="355" y1="220" x2="439" y2="70"><stop offset="0.62" stop-color="#FE5C36"/><stop offset="1" stop-color="#AE301A"/></linearGradient><linearGradient id="g4" gradientUnits="userSpaceOnUse" x1="439" y1="70" x2="523" y2="220"><stop offset="0.62" stop-color="#FE5C36"/><stop offset="1" stop-color="#AE301A"/></linearGradient></defs><polygon points="80,70 126,70 210,220 164,220" fill="url(#g0)" stroke="url(#g0)" stroke-width="5" stroke-linejoin="round"/><polygon points="164,220 210,220 294,70 248,70" fill="url(#g1)" stroke="url(#g1)" stroke-width="5" stroke-linejoin="round"/><polygon points="248,70 294,70 378,220 332,220" fill="url(#g2)" stroke="url(#g2)" stroke-width="5" stroke-linejoin="round"/><polygon points="332,220 378,220 462,70 416,70" fill="url(#g3)" stroke="url(#g3)" stroke-width="5" stroke-linejoin="round"/><polygon points="416,70 462,70 546,220 500,220" fill="url(#g4)" stroke="url(#g4)" stroke-width="5" stroke-linejoin="round"/></svg></span>
-  <span class="sep"></span>
-  <button id="undoBtn" class="b" title="되돌리기 (Ctrl+Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M9 7L4 12l5 5"/><path d="M4 12h11a5 5 0 010 10h-3"/></svg></button>
-  <button id="redoBtn" class="b" title="다시 실행 (Ctrl+Shift+Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M15 7l5 5-5 5"/><path d="M20 12H9a5 5 0 000 10h3"/></svg></button>
-  <span class="sep"></span>
-  <div id="views" class="seg">
-    <button data-v="line" class="b on" title="벡터: 사진 위 벡터 선·점 (1)">벡터</button>
-    <button data-v="vmask" class="b" title="벡터 마스크: SVG 패스를 흰색으로 채운 모양 (2)">마스크</button>
-    <span class="sep"></span>
-    <button data-v="cut" class="b" title="비트맵: 배경을 지운 PNG (3)">비트맵</button>
-    <button data-v="mask" class="b" title="비트맵 마스크: AI 마스크 PNG (4)">마스크</button>
-  </div>
-  <span class="sep"></span>
-  <div id="tools" class="seg">
-    <button data-t="view" class="b on" title="보기 (V)">보기</button>
-    <button data-m="-" class="b" title="점 적게: 칠한 곳 허용 오차를 키움 (Alt+드래그 · 오른쪽 버튼 드래그)">−</button>
-    <button data-t="1" class="b" title="브러시 (B) · 드래그 = 점 많이, Alt·오른쪽 버튼 = 점 적게. 여러 번 칠하면 누적">브러시 +</button>
-    <button data-m="+" class="b" title="점 많이: 칠한 곳 허용 오차를 줄임">+</button>
-    <button data-t="0" class="b" title="지우개 (E) · 칠한 곳을 전체 값으로">지우개</button>
-    <button id="zclear" class="b hide-sm" title="칠한 영역 표시만 모두 지우기 · 브러시로 바꾼 결과는 그대로 (결과를 없애려면 지우개)">전체 지우기</button>
-  </div>
-  <span class="grow"></span>
-  <div id="mstat"><span id="mtext">엔진 대기</span><div id="mbar"><i></i></div></div>
-  <span class="ver">v0.7.3</span>
-  <button id="add" class="b" title="사진 추가 (끌어다 놓기 가능)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><rect x="3" y="5" width="18" height="14"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/></svg> 사진 추가</button>
-  <button id="runAll" class="b" disabled title="목록의 모든 사진을 처리">전체 처리</button>
-  <button id="sSvgTop" class="b red" disabled title="선택한 사진의 벡터 SVG 저장">SVG 저장</button>
-</div>
+<div id="topline"><b id="cname">사진 없음</b><span id="cinfo"></span><span id="ckey"></span><span class="grow"></span><span class="ver">Vector Man v0.8.0</span></div>
 <input id="fin" type="file" accept="image/*" multiple hidden>
 <main>
   <nav id="rail">
+    <div class="rlogo" title="Vector Man (VM) · 사진 속 인물을 벡터로"><svg aria-label="VM" xmlns="http://www.w3.org/2000/svg" width="476" height="160" viewBox="75 65 476 160"><defs><linearGradient id="g0" gradientUnits="userSpaceOnUse" x1="103" y1="70" x2="187" y2="220"><stop offset="0.62" stop-color="#5BB4F5"/><stop offset="1" stop-color="#2F86D0"/></linearGradient><linearGradient id="g1" gradientUnits="userSpaceOnUse" x1="187" y1="220" x2="271" y2="70"><stop offset="0.62" stop-color="#FE5C36"/><stop offset="1" stop-color="#AE301A"/></linearGradient><linearGradient id="g2" gradientUnits="userSpaceOnUse" x1="271" y1="70" x2="355" y2="220"><stop offset="0.62" stop-color="#FE5C36"/><stop offset="1" stop-color="#AE301A"/></linearGradient><linearGradient id="g3" gradientUnits="userSpaceOnUse" x1="355" y1="220" x2="439" y2="70"><stop offset="0.62" stop-color="#FE5C36"/><stop offset="1" stop-color="#AE301A"/></linearGradient><linearGradient id="g4" gradientUnits="userSpaceOnUse" x1="439" y1="70" x2="523" y2="220"><stop offset="0.62" stop-color="#FE5C36"/><stop offset="1" stop-color="#AE301A"/></linearGradient></defs><polygon points="80,70 126,70 210,220 164,220" fill="url(#g0)" stroke="url(#g0)" stroke-width="5" stroke-linejoin="round"/><polygon points="164,220 210,220 294,70 248,70" fill="url(#g1)" stroke="url(#g1)" stroke-width="5" stroke-linejoin="round"/><polygon points="248,70 294,70 378,220 332,220" fill="url(#g2)" stroke="url(#g2)" stroke-width="5" stroke-linejoin="round"/><polygon points="332,220 378,220 462,70 416,70" fill="url(#g3)" stroke="url(#g3)" stroke-width="5" stroke-linejoin="round"/><polygon points="416,70 462,70 546,220 500,220" fill="url(#g4)" stroke="url(#g4)" stroke-width="5" stroke-linejoin="round"/></svg></div>
     <button data-sec="preset" title="프리셋 · 엔진"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="15" r="3"/></svg>프리셋</button>
     <button data-sec="edge" title="경계"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M5 19c3-9 6-14 14-14"/><circle cx="5" cy="19" r="2"/></svg>경계</button>
     <button data-sec="curve" title="곡선"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M4 18C8 4 16 20 20 6"/><rect x="2.5" y="16.5" width="3" height="3"/><rect x="18.5" y="4.5" width="3" height="3"/></svg>곡선</button>
@@ -155,8 +168,9 @@ input[type=range]::-moz-range-thumb{width:9px;height:15px;border-radius:0;backgr
     <button data-sec="out" title="출력"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M12 4v11M7 10l5 5 5-5M4 20h16"/></svg>출력</button>
   </nav>
   <aside id="drawer" class="pan">
-    <div class="ph"><span id="secTitle">곡선</span><span class="grow"></span><button id="presetBtn" class="b" title="프리셋 패널 열기">기본</button></div>
-    <div class="pb">
+    <div class="ph">설정<span class="grow"></span><button id="presetBtn" class="b" title="프리셋으로 이동">기본</button></div>
+    <div class="pb" id="setScroll">
+      <section class="sec" data-sec="preset"><h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="15" r="3"/></svg>프리셋 · 엔진</h3>
       <div id="presetPane">
         <div id="plist"></div>
         <div class="acts">
@@ -170,32 +184,58 @@ input[type=range]::-moz-range-thumb{width:9px;height:15px;border-radius:0;backgr
           <button id="pickModel" class="b" title="모델 다운로드가 막힐 때: 받아 둔 모델 파일(.onnx)을 직접 선택">파일…</button>
         </div>
       </div>
+      </section>
       <div id="groups"></div>
     </div>
   </aside>
   <section id="mid">
-    <div id="crumb"><b id="cname">사진 없음</b><span id="ckey"></span></div>
     <div id="stage">
       <canvas id="cv"></canvas>
       <div id="empty">사진을 끌어다 놓기</div>
       <div id="busy"></div>
       <div id="hv"></div>
+      <div id="pvBox" title="미리보기"></div>
+      <div id="bgBox" title="작업대 배경"><span>배경</span></div>
     </div>
-    <div id="strip"><div id="list"></div><button class="addt" id="addTile" title="사진 추가">+ 사진</button><button id="clear" class="b" disabled>목록 비우기</button></div>
+    <div id="bot">
+      <button id="undoBtn" class="b" title="되돌리기 (Ctrl+Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M9 7L4 12l5 5"/><path d="M4 12h11a5 5 0 010 10h-3"/></svg></button>
+      <button id="redoBtn" class="b" title="다시 실행 (Ctrl+Shift+Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M15 7l5 5-5 5"/><path d="M20 12H9a5 5 0 000 10h3"/></svg></button>
+      <span class="sep"></span>
+      <div id="views" class="seg">
+    <button data-v="line" class="b on" title="벡터: 사진 위 벡터 선·점 (1)">벡터</button>
+    <button data-v="vmask" class="b" title="벡터 마스크: SVG 패스를 흰색으로 채운 모양 (2)">마스크</button>
+    <span class="sep"></span>
+    <button data-v="cut" class="b" title="비트맵: 배경을 지운 PNG (3)">비트맵</button>
+    <button data-v="mask" class="b" title="비트맵 마스크: AI 마스크 PNG (4)">마스크</button>
+  </div>
+      <span class="sep"></span>
+      <div id="tools" class="seg">
+    <button data-t="view" class="b on" title="보기 (V)">보기</button>
+    <button data-m="-" class="b" title="점 적게: 칠한 곳 허용 오차를 키움 (Alt+드래그 · 오른쪽 버튼 드래그)">−</button>
+    <button data-t="1" class="b" title="브러시 (B) · 드래그 = 점 많이, Alt·오른쪽 버튼 = 점 적게. 여러 번 칠하면 누적">브러시 +</button>
+    <button data-m="+" class="b" title="점 많이: 칠한 곳 허용 오차를 줄임">+</button>
+    <button data-t="0" class="b" title="지우개 (E) · 칠한 곳을 전체 값으로">지우개</button>
+    <button id="zclear" class="b" title="칠한 영역 표시만 모두 지우기 · 브러시로 바꾼 결과는 그대로 (결과를 없애려면 지우개)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" stroke-dasharray="3 2"/><path d="M8 8l8 8M16 8l-8 8"/></svg><span class="lbl">전체 지우기</span></button>
+  </div>
+      <span class="grow"></span>
+      <div id="mstat"><span id="mtext">엔진 대기</span><div id="mbar"><i></i></div></div>
+    </div>
   </section>
   <aside id="side" class="pan">
-    <div class="ph">결과</div>
-    <div class="pb">
+    <div class="ph">작업 파일 <span id="fcount">0</span><span class="grow"></span><button id="clear" class="b" disabled title="목록 비우기 (파일은 그대로)">비우기</button></div>
+    <div class="fa"><button id="add" class="b" title="사진 추가 (끌어다 놓기 가능)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><rect x="3" y="5" width="18" height="14"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/></svg> 사진 추가</button><button id="runAll" class="b" disabled title="목록의 모든 사진을 처리">전체 처리</button></div>
+    <div id="list"></div>
+    <div class="res">
       <div class="big" id="pts">–<small>점</small></div>
       <div class="stat"><div><b id="stPaths">–</b><span>패스</span></div><div><b id="stTol">–</b><span>오차</span></div><div><b id="stSize">–</b><span>원본</span></div><div><b id="stMs">–</b><span>계산</span></div></div>
       <div class="h2">저장</div>
+      <div class="nm"><label for="k_suffix">파일명 뒤</label><input id="k_suffix" type="text" maxlength="40" title="원래 파일 이름 뒤에 붙일 단어"></div>
+      <div class="ex" id="nmEx"></div>
       <div class="btns">
         <button id="sSvg" class="b red full" disabled title="선택한 사진의 벡터 SVG 저장">SVG 저장</button>
         <button id="sPng" class="b" disabled title="배경을 지운 PNG">투명 PNG</button><button id="sMask" class="b" disabled title="흑백 마스크 PNG">마스크 PNG</button>
         <button id="sZip" class="b full" disabled title="처리된 모든 사진의 SVG·PNG·마스크를 ZIP 하나로">전체 ZIP</button>
       </div>
-      <div id="pvGroup"></div>
-      <div id="stats" hidden></div>
     </div>
   </aside>
 </main>
@@ -576,6 +616,7 @@ document.getElementById('bevel').textContent =
 // t: range | check | select | color | text. u = 단위. tip = 툴팁(화면 설명 문구 대신)
 const GROUPS = [
   ['경계', [
+    { k: 'res', l: '작업 해상도', t: 'select', d: '2048', o: [['1024', '1024px'], ['2048', '2048px'], ['3072', '3072px']], tip: '벡터 계산 해상도. 높을수록 정밀·느림' },
     { k: 'thr', l: '경계 기준', t: 'range', min: .05, max: .95, s: .05, d: .5, f: 2, tip: '낮추면 잔머리·반투명 부분까지 포함, 높이면 안쪽을 땀' },
     { k: 'offset', l: '확장·축소', t: 'range', min: -10, max: 10, s: 1, d: 0, u: 'px', tip: '벡터를 바깥(+)·안쪽(−)으로 이동 (원본 픽셀)' },
     { k: 'feather', l: '페더', t: 'range', min: 0, max: 10, s: 1, d: 1, u: 'px', tip: 'PNG·마스크 경계를 흐리는 정도' },
@@ -613,11 +654,6 @@ const GROUPS = [
     { k: 'pngScale', l: '크기', t: 'select', d: '1', o: [['1', '원본 100%'], ['0.5', '50%'], ['0.25', '25%']] },
     { k: 'maskInv', l: '', t: 'check', d: false, c: '마스크 반전', tip: '인물 검정, 배경 흰색' },
   ]],
-  ['파일', [
-    { k: 'prefix', l: '앞 글자', t: 'text', d: '', tip: '저장 파일 이름 앞에 붙임' },
-    { k: 'suffix', l: '뒤 글자', t: 'text', d: '', tip: '저장 파일 이름 뒤(_outline 등 앞)에 붙임' },
-    { k: 'res', l: '작업 해상도', t: 'select', d: '2048', o: [['1024', '1024px'], ['2048', '2048px'], ['3072', '3072px']], tip: '벡터 계산 해상도. 높을수록 정밀·느림' },
-  ]],
   ['미리보기', [
     { k: 'lineColor', l: '선 색', t: 'color', d: '#ff3b30' },
     { k: 'lineW', l: '선 굵기', t: 'range', min: 1, max: 5, s: .5, d: 1.5, f: 1, u: 'px' },
@@ -626,6 +662,7 @@ const GROUPS = [
 ];
 const SPEC = {}; GROUPS.forEach(([, a]) => a.forEach(s => SPEC[s.k] = s));
 const DEF = Object.fromEntries(Object.values(SPEC).map(s => [s.k, s.d]));
+DEF.suffix = '_vm';   // 저장 파일 이름 뒤에 붙일 단어 (저장 칸에서 입력)
 const BASE = { thr: .25, offset: 0, feather: 0, smooth: 0, simplify: 1, corner: 0, curve: 'bezier', speck: 20, hole: 0, holeAll: false, people: '0' };
 Object.assign(DEF, BASE);   // 기본 = 사용자 실사진 값(v0.2.1 '단순 실루엣') + 허용 오차 1px
 const BUILTIN = [
@@ -670,7 +707,7 @@ function flash(t) { busy(t); clearTimeout(ft); ft = setTimeout(() => { if ($('bu
 
 /* ================= 설정 화면 ================= */
 const fmt = (s, v) => s.t !== 'range' ? '' : (s.z && +v === 0) ? s.z : (+v).toFixed(s.f || 0) + (s.u || '');
-const SEC = { preset: ['프리셋 · 엔진', []], edge: ['경계', ['경계']], curve: ['곡선', ['곡선']], brush: ['부분 브러시', ['부분 브러시']], clean: ['정리', ['정리']], out: ['출력', ['SVG 출력', 'PNG 출력', '파일']] };
+const SEC = { preset: ['프리셋 · 엔진', []], edge: ['경계', ['경계']], curve: ['곡선', ['곡선']], brush: ['부분 브러시', ['부분 브러시']], clean: ['정리', ['정리']], out: ['출력', ['SVG 출력', 'PNG 출력']] };
 function buildGroups() {
   const row = s => {
     const id = 'k_' + s.k;
@@ -683,8 +720,10 @@ function buildGroups() {
     return `<div class="r${s.t === 'check' ? ' chk' : ''}"${s.tip ? ` title="${s.tip}"` : ''}><label for="${id}" data-k="${s.k}">${s.l}</label>${c}</div>`;
   };
   const html = ([g, a]) => `<div class="grp" data-g="${g}"><h2>${g}</h2>${a.map(row).join('')}</div>`;
-  $('groups').innerHTML = GROUPS.filter(([g]) => g !== '미리보기').map(html).join('');
-  $('pvGroup').innerHTML = GROUPS.filter(([g]) => g === '미리보기').map(html).join('');
+  const icon = k => (($('rail').querySelector(`[data-sec=${k}] svg`) || {}).outerHTML || '');
+  $('groups').innerHTML = Object.entries(SEC).filter(([k]) => k !== 'preset').map(([k, [title, gs]]) =>
+    `<section class="sec" data-sec="${k}"><h3>${icon(k)}${title}</h3>${GROUPS.filter(([g]) => gs.includes(g)).map(html).join('')}</section>`).join('');
+  $('pvBox').innerHTML = GROUPS.filter(([g]) => g === '미리보기').map(([g, a]) => a.map(row).join('')).join('');
   Object.values(SPEC).forEach(s => {
     const el = $('k_' + s.k);
     el.addEventListener('input', () => { snap(); S[s.k] = s.t === 'range' ? +el.value : s.t === 'check' ? el.checked : el.value; changed(s.k); });
@@ -692,7 +731,12 @@ function buildGroups() {
   // 라벨 두 번 클릭 = 기본값
   document.querySelectorAll('label[data-k]').forEach(l => { l.title = '두 번 클릭: 기본값'; l.ondblclick = () => { snap(); S[l.dataset.k] = DEF[l.dataset.k]; syncUI(); changed(l.dataset.k); }; });
 }
+function nameEx() {
+  const n = cur ? cur.it.name.replace(/\.[^.]+$/, '') : '사진이름', w = (S.suffix || '').replace(/[&<>"']/g, c => '&#' + c.charCodeAt(0) + ';'), e = n.replace(/[&<>"']/g, c => '&#' + c.charCodeAt(0) + ';');
+  $('nmEx').innerHTML = `${e}<b>${w}</b>.svg · ${e}<b>${w}</b>.png · ${e}<b>${w}</b>_mask.png`;
+}
 function syncUI() {
+  $('k_suffix').value = S.suffix || ''; nameEx();
   Object.values(SPEC).forEach(s => {
     const el = $('k_' + s.k), v = S[s.k];
     if (s.t === 'check') el.checked = !!v; else el.value = v;
@@ -700,7 +744,7 @@ function syncUI() {
   });
   presetLabel();
 }
-const PREVIEW_ONLY = ['lineColor', 'lineW', 'showPts', 'bsize', 'bstr', 'bten'], OUTPUT_ONLY = ['svgMode', 'fillColor', 'strokeColor', 'strokeW', 'cutColor', 'pngScale', 'maskInv', 'prefix', 'suffix', 'feather'];
+const PREVIEW_ONLY = ['lineColor', 'lineW', 'showPts', 'bsize', 'bstr', 'bten'], OUTPUT_ONLY = ['svgMode', 'fillColor', 'strokeColor', 'strokeW', 'cutColor', 'pngScale', 'maskInv', 'suffix', 'feather'];
 let tm = 0;
 function changed(k) {
   const s = SPEC[k]; if (s && s.t === 'range') $('v_' + k).textContent = fmt(s, S[k]);
@@ -728,16 +772,25 @@ function drawPList() {
   const p = findPreset(presetName); $('presetPane').querySelector('[data-a=del]').disabled = !p || p.builtin;
 }
 $('presetBtn').onclick = () => setSec('preset');
-function setSec(k) {   // 왼쪽 아이콘 줄 → 설정 패널 내용
-  if (!SEC[k]) k = 'curve';
-  [...$('rail').children].forEach(b => b.classList.toggle('on', b.dataset.sec === k));
-  $('secTitle').textContent = SEC[k][0];
-  $('presetPane').classList.toggle('show', k === 'preset');
-  $('groups').querySelectorAll('.grp').forEach(g => g.classList.toggle('show', SEC[k][1].includes(g.dataset.g)));
-  $('groups').classList.toggle('one', SEC[k][1].length === 1);   // 묶음 하나면 제목 줄과 겹치는 소제목 숨김
-  store.set('vman.sec', k);
+function markSec(k) {   // 아이콘 줄 · 묶음 강조
+  [...$('rail').querySelectorAll('[data-sec]')].forEach(b => b.classList.toggle('on', b.dataset.sec === k));
+  document.querySelectorAll('#drawer .sec').forEach(x => x.classList.toggle('hl', x.dataset.sec === k));
 }
-$('rail').onclick = e => { const b = e.target.closest('button'); if (b) setSec(b.dataset.sec); };
+let secLock = 0;
+function setSec(k, quiet) {   // 아이콘 누름 → 그 묶음으로 스크롤 + 강조
+  const el = document.querySelector(`#drawer .sec[data-sec="${k}"]`); if (!el) return;
+  markSec(k); store.set('vman.sec', k);
+  if (quiet) return;
+  secLock = Date.now(); $('setScroll').scrollTo({ top: el.offsetTop - $('setScroll').offsetTop, behavior: 'smooth' });
+}
+$('setScroll').addEventListener('scroll', () => {   // 직접 스크롤하면 위쪽에 걸린 묶음을 강조
+  if (Date.now() - secLock < 700) return;
+  const box = $('setScroll'), y = box.scrollTop + 40; let k = 'preset';
+  box.querySelectorAll('.sec').forEach(x => { if (x.offsetTop - box.offsetTop <= y) k = x.dataset.sec; });
+  if (box.scrollTop + box.clientHeight >= box.scrollHeight - 4) k = [...box.querySelectorAll('.sec')].pop().dataset.sec;
+  markSec(k);
+});
+$('rail').onclick = e => { const b = e.target.closest('button[data-sec]'); if (b) setSec(b.dataset.sec); };
 $('presetPane').onclick = async e => {
   const pi = e.target.closest('.pi'), a = e.target.closest('[data-a]');
   if (pi) { applyPreset(allPresets()[+pi.dataset.i]); drawPList(); return; }
@@ -748,7 +801,7 @@ $('presetPane').onclick = async e => {
   } else if (a.dataset.a === 'reset') { applyPreset(BUILTIN[0]); drawPList(); }
   else if (a.dataset.a === 'exp') {
     if (!userPresets.length) { popup('내보낼 사용자 프리셋이 없습니다.', [['ok', '확인']]); return; }
-    save(new Blob([JSON.stringify({ app: 'vectorman', version: '0.7.3', presets: userPresets.map(p => ({ name: p.name, values: p.v })) }, null, 2)], { type: 'application/json' }), 'vectorman_presets.json');
+    save(new Blob([JSON.stringify({ app: 'vectorman', version: '0.8.0', presets: userPresets.map(p => ({ name: p.name, values: p.v })) }, null, 2)], { type: 'application/json' }), 'vectorman_presets.json');
   } else if (a.dataset.a === 'imp') $('fpreset').click();
 };
 function savePresets() { if (!store.set('vman.presets', userPresets)) popup('이 브라우저에 저장하지 못했습니다.\n내보내기로 파일에 백업하세요.', [['ok', '확인']]); }
@@ -937,7 +990,7 @@ function buildSVG(r, W, H) {
   if (r.cut) s += `<path id="cutline" fill="none" stroke="${S.cutColor}" stroke-width="1" d="${r.cut}"/>\n`;
   return s + '</svg>\n';
 }
-const fname = (n, tail) => (S.prefix || '') + n.replace(/\.[^.]+$/, '') + (S.suffix || '') + tail;
+const fname = (n, kind) => n.replace(/\.[^.]+$/, '') + (S.suffix || '') + { svg: '.svg', png: '.png', mask: '_mask.png' }[kind];
 async function renderFiles(it, bmp) {
   const W = bmp.width, H = bmp.height, [ww, wh] = workSize(W, H), sc = W / ww;
   const prob = probAt(it.mask, ww, wh), r = Core.vectorize(prob, ww, wh, opts(sc, it));
@@ -963,7 +1016,8 @@ async function thumb(it) {
     it.url = c.toDataURL('image/jpeg', 0.8); drawList(); } catch (e) {}
 }
 function drawList() {
-  $('list').innerHTML = items.map((it, i) => `<div class="it${i === sel ? ' sel' : ''}" data-i="${i}"><img src="${it.url || 'data:,'}" alt=""><b></b><small class="${it.cls}"></small></div>`).join('');
+  $('list').innerHTML = items.map((it, i) => `<div class="it${i === sel ? ' sel' : ''}" data-i="${i}"><img src="${it.url || 'data:,'}" alt=""><div style="min-width:0"><b></b><small class="${it.cls}"></small></div></div>`).join('');
+  $('fcount').textContent = items.length; crumb();
   [...$('list').children].forEach((el, i) => { el.querySelector('b').textContent = items[i].name; el.querySelector('small').textContent = items[i].st; });
   const has = items.length > 0;
   $('runAll').disabled = !has; $('clear').disabled = !has; $('sZip').disabled = !items.some(i => i.mask);
@@ -985,7 +1039,7 @@ async function doProcess(it) {
 }
 function removeItem(i) {   // 목록에서 빼기(파일은 그대로). 되돌리기 항목 반환
   const it = items[i]; items.splice(i, 1);
-  if (cur && cur.it === it) { cur.bmp.close(); cur = null; res = null; showStats('–', '–', '–', '–', '–'); ['sSvg', 'sSvgTop', 'sPng', 'sMask'].forEach(b => $(b).disabled = true); crumb(); }
+  if (cur && cur.it === it) { cur.bmp.close(); cur = null; res = null; showStats('–', '–', '–', '–', '–'); ['sSvg', 'sPng', 'sMask'].forEach(b => $(b).disabled = true); crumb(); }
   if (sel > i) sel--; else if (sel === i) sel = -1;
   drawList();
   if (sel < 0 && items.length) select(Math.min(i, items.length - 1)); else draw();
@@ -1013,15 +1067,17 @@ function update() {
   if (cur.it.zg) cur.it.zcDirty = true;   // 칠한 색은 전체 오차 대비라 다시 그림
   res.path = new Path2D(res.d); res.cutPath = res.cut ? new Path2D(res.cut) : null; cur.alpha = null;
   showStats(res.nodes.toLocaleString(), res.paths, res.tol.toFixed(1) + 'px' + (S.target && res.tol > S.simplify ? ' 자동' : ''), `${W}×${H}`, (performance.now() - t).toFixed(0) + 'ms');
-  ['sSvg', 'sSvgTop', 'sPng', 'sMask'].forEach(b => $(b).disabled = false);
+  ['sSvg', 'sPng', 'sMask'].forEach(b => $(b).disabled = false);
   draw();
 }
 function showStats(n, p, tol, size, ms) {
   $('pts').firstChild.textContent = n; $('stPaths').textContent = p; $('stTol').textContent = tol; $('stSize').textContent = size; $('stMs').textContent = ms;
 }
-function crumb() {
+function crumb() {   // 가는 윗줄: 파일 이름 · 크기 · 상태 · 브러시 안내
   $('cname').textContent = cur ? cur.it.name : '사진 없음';
+  $('cinfo').textContent = cur ? `${cur.bmp.width}×${cur.bmp.height} · ${cur.it.st}` : '';
   const k = $('ckey'); k.className = tool !== 'view' ? 'key' : ''; k.textContent = tool === '1' ? '브러시 ' + (bmode === '+' ? '+ 점 많이' : '− 점 적게') + ' · Alt·오른쪽 버튼 = 반대 · [ ] 크기' : tool === '0' ? '지우개' : '';
+  if ($('nmEx')) nameEx();
 }
 function draw() {
   const cv = $('cv'), dpr = devicePixelRatio || 1, Wc = cv.clientWidth, Hc = cv.clientHeight;
@@ -1160,6 +1216,20 @@ function drawCursor(g) {   // 브러시 원 + 방향(+/−)
   const [mx, my] = mouse; g.beginPath(); g.arc(mx, my, S.bsize / 2, 0, 7); g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.stroke(); g.strokeStyle = '#000'; g.lineWidth = .5; g.stroke();
   if (tool === '1') { const m = painting ? strokeMode : (altDown ? (bmode === '+' ? '-' : '+') : bmode); g.fillStyle = '#fff'; g.font = '700 16px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(m === '+' ? '+' : '−', mx, my); }
 }
+/* ================= 작업대 배경 (보기 전용 · 프리셋과 별개) ================= */
+const BGS = [['dots', '모눈', 'radial-gradient(var(--dot) 1px,transparent 1.2px) 0 0/14px 14px,var(--desk)'], ['#ffffff', '흰색'], ['#808080', '회색'], ['#111111', '검정'], ['#00b140', '크로마 초록'],
+  ['check', '체크무늬', 'repeating-conic-gradient(#d8d8d8 0 25%,#fff 0 50%) 0 0/20px 20px']];
+function bgSet(v) {
+  const b = BGS.find(x => x[0] === v); $('stage').style.background = b ? (b[2] || b[0]) : v;
+  [...$('bgBox').querySelectorAll('button')].forEach(x => x.classList.toggle('on', x.dataset.bg === v));
+  $('bgPick').classList.toggle('on', !b); store.set('vman.bg', v);
+}
+function bgInit() {
+  $('bgBox').insertAdjacentHTML('beforeend', BGS.map(([v, l, css]) => `<button class="b" data-bg="${v}" title="${l}" style="background:${css || v}"></button>`).join('') + '<input id="bgPick" type="color" title="색 고르기" value="#336699">');
+  $('bgBox').onclick = e => { const b = e.target.closest('[data-bg]'); if (b) bgSet(b.dataset.bg); };
+  $('bgPick').oninput = e => bgSet(e.target.value);
+  bgSet(store.get('vman.bg', 'dots'));
+}
 function busy(t) { $('busy').textContent = t; $('busy').style.display = t ? 'block' : 'none'; }
 
 /* ================= 저장 ================= */
@@ -1170,7 +1240,7 @@ function save(blob, name) {
 async function saveOne(kind) {
   if (!cur || !cur.it.mask) return;
   busy('저장 파일 만드는 중…');
-  try { const f = await renderFiles(cur.it, cur.bmp); save(f[kind], fname(cur.it.name, { svg: '_vector.svg', png: '_cutout.png', mask: '_mask.png' }[kind])); }
+  try { const f = await renderFiles(cur.it, cur.bmp); save(f[kind], fname(cur.it.name, kind)); }
   catch (e) { popup('저장하지 못했습니다.\n' + (e.message || e), [['ok', '확인']]); }
   finally { busy(''); }
 }
@@ -1187,7 +1257,7 @@ async function saveZip() {
       busy(`ZIP 만드는 중 ${k + 1} / ${done.length}`);
       const it = done[k], bmp = await createImageBitmap(it.file), f = await renderFiles(it, bmp);
       bmp.close();
-      zip.file(fname(it.name, '_vector.svg'), f.svg); zip.file(fname(it.name, '_cutout.png'), f.png); zip.file(fname(it.name, '_mask.png'), f.mask);
+      zip.file(fname(it.name, 'svg'), f.svg); zip.file(fname(it.name, 'png'), f.png); zip.file(fname(it.name, 'mask'), f.mask);
     }
     save(await zip.generateAsync({ type: 'blob' }), 'vectorman.zip');
   } catch (e) { popup('ZIP을 만들지 못했습니다.\n' + (e.message || e), [['ok', '확인']]); }
@@ -1195,7 +1265,7 @@ async function saveZip() {
 }
 
 /* ================= 이벤트 ================= */
-$('add').onclick = $('addTile').onclick = () => $('fin').click();
+$('add').onclick = () => $('fin').click();
 $('undoBtn').onclick = () => undo(); $('redoBtn').onclick = () => redo();
 $('fin').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
 ['dragover', 'dragenter'].forEach(t => document.addEventListener(t, e => { e.preventDefault(); $('stage').classList.add('drag'); }));
@@ -1213,10 +1283,11 @@ $('runAll').onclick = runAll;
 $('clear').onclick = async () => {
   if (await popup('목록을 비울까요?', [['cancel', '취소'], ['ok', '비우기', 'red']]) !== 'ok') return;
   items.length = 0; sel = -1; if (cur) cur.bmp.close(); cur = null; res = null; showStats('–', '–', '–', '–', '–');
-  ['sSvg', 'sSvgTop', 'sPng', 'sMask'].forEach(b => $(b).disabled = true); drawList(); draw(); crumb();
+  ['sSvg', 'sPng', 'sMask'].forEach(b => $(b).disabled = true); drawList(); draw(); crumb();
 };
-$('sSvg').onclick = $('sSvgTop').onclick = () => saveOne('svg'); $('sPng').onclick = () => saveOne('png'); $('sMask').onclick = () => saveOne('mask');
+$('sSvg').onclick = () => saveOne('svg'); $('sPng').onclick = () => saveOne('png'); $('sMask').onclick = () => saveOne('mask');
 $('sZip').onclick = saveZip;
+$('k_suffix').addEventListener('input', e => { snap(); S.suffix = e.target.value.replace(/[\\/:*?"<>|]/g, ''); nameEx(); changed('suffix'); });
 function setView(v) { view = v; [...$('views').querySelectorAll('button')].forEach(x => x.classList.toggle('on', x.dataset.v === v)); draw(); }
 $('views').onclick = e => { const b = e.target.closest('button'); if (b) setView(b.dataset.v); };
 let altDown = false;
@@ -1241,7 +1312,7 @@ document.addEventListener('keydown', e => {
 $('pickModel').onclick = () => $('fmodel').click();
 $('fmodel').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f || session) return; sessionP = null; try { await ensureModel(await f.arrayBuffer()); } catch (er) {} };
 const ro = new ResizeObserver(() => draw()); ro.observe($('stage'));
-buildGroups(); syncUI(); setSec(store.get('vman.sec', 'curve')); crumb();
+buildGroups(); syncUI(); bgInit(); markSec('preset'); crumb();
 if (PC) {
   const sel = $('engine'); sel.querySelector('[value=pc]').disabled = false; sel.querySelector('[value=pc]').textContent = 'PC 엔진 · HR-matting 2048'; sel.value = 'pc';
   sel.querySelector('[value=web]').disabled = typeof ort === 'undefined'; $('pickModel').hidden = true;

@@ -43,12 +43,12 @@ async def main():
     dl = await d.value; await dl.save_as(OUT('presets.json')); print('4 export:', dl.suggested_filename, json.load(open(OUT('presets.json')))['presets'][0]['values']['cut'])
     await pg.click('#plist .pi >> nth=0'); await pg.wait_for_timeout(300)
     print('5 builtin 기본:', await pg.text_content('#presetBtn'), await pg.input_value('#k_cut'))
-    await pg.mouse.click(1200, 120)
+    await pg.mouse.click(700, 120)
     await pg.set_input_files('#fpreset', OUT('presets.json')); await pg.wait_for_timeout(200)
     print('6 import:', await pg.text_content('#pop .msg')); await pg.click('#pop button')
     await pg.click('#rail [data-sec=preset]'); await pg.click('#plist .pi >> text=내 칼선'); await pg.wait_for_timeout(300)
     print('7 apply user preset cut =', await pg.input_value('#k_cut'))
-    await pg.mouse.click(1200, 120)
+    await pg.mouse.click(700, 120)
     await pg.click('#runAll'); await pg.wait_for_function("[...document.querySelectorAll('.it small')].every(s=>s.textContent.startsWith('완료'))", timeout=90000)
     await pg.click('#views button[data-v=cut]'); await pg.wait_for_timeout(300); await pg.screenshot(path=OUT('4_cutout.png')); await pg.keyboard.press('2'); await pg.wait_for_timeout(300); await pg.screenshot(path=OUT('6_vmask.png'))
     for sel, nm in [('#sSvg', 'a.svg'), ('#sPng', 'a.png'), ('#sMask', 'm.png'), ('#sZip', 'a.zip')]:
@@ -58,11 +58,11 @@ async def main():
     v0 = await pg.input_value('#k_thr')
     for v in ['0.3', '0.4', '0.6']:
       await pg.eval_on_selector('#k_thr', f"(e)=>{{e.value='{v}';e.dispatchEvent(new Event('input'))}}"); await pg.wait_for_timeout(500)
-    await pg.mouse.click(1200, 120)
+    await pg.mouse.click(700, 120)
     for _ in range(3): await pg.keyboard.press('Control+z'); await pg.wait_for_timeout(100)
     u = await pg.input_value('#k_thr'); await pg.keyboard.press('Control+Shift+z'); await pg.wait_for_timeout(100)
     print('9 undo:', v0, '→', u, '| redo →', await pg.input_value('#k_thr'), '| 페더 라벨:', await pg.text_content('label[for=k_feather]'), '| 확장 범위:', await pg.get_attribute('#k_offset', 'max'))
-    await pg.click('#rail [data-sec=preset]'); print('10 presets:', [await e.text_content() for e in await pg.query_selector_all('#plist .pi span')]); await pg.mouse.click(1200, 120)
+    await pg.click('#rail [data-sec=preset]'); print('10 presets:', [await e.text_content() for e in await pg.query_selector_all('#plist .pi span')]); await pg.mouse.click(700, 120)
     # 누적형 브러시: [+] 두 번 칠함 → 점 증가(누적), [−] 칠함 → 감소, 전체 지우기 → Ctrl+Z 복구
     box = await pg.query_selector('#cv'); bb = await box.bounding_box()
     async def stroke(alt=False):
@@ -80,7 +80,7 @@ async def main():
     a3 = await stroke(alt=True)
     await pg.click('#tools [data-m="-"]'); a4 = await stroke(); a5 = await stroke()
     await pg.click('#zclear'); await pg.wait_for_timeout(500); a6 = (await pg.text_content('#pts')).split('점')[0] + ' 표시칸 ' + str(await pg.evaluate("document.querySelector('#cv') && 0"))
-    await pg.click('#tools [data-t="view"]'); await pg.mouse.click(1200, 120)
+    await pg.click('#tools [data-t="view"]'); await pg.mouse.click(700, 120)
     await pg.keyboard.press('Control+z'); await pg.wait_for_timeout(500); a7 = (await pg.text_content('#pts')).split('점')[0]
     print('11 brush:', p0, '| +', a1, '| + 누적', a2, '| 칸', hv, '| Alt', a3, '| −', a4, '| − 누적', a5, '| 전체 지우기', a6, '| Ctrl+Z', a7)
     await pg.keyboard.press('Control+Shift+z'); await pg.wait_for_timeout(300)
@@ -93,6 +93,13 @@ async def main():
     await pg.click('.it >> nth=0', button='right'); await pg.click('#ctx [data-a=del]'); await pg.wait_for_timeout(300); n3 = await pg.locator('.it').count()
     await pg.keyboard.press('Control+z'); await pg.wait_for_timeout(500)
     print('13 list:', n1, '→ undo', n2, '→ 오른쪽 삭제', n3, '→ undo', await pg.locator('.it').count(), '| 선택', await pg.text_content('.it.sel b'))
+    # v0.8: 파일명 뒤 단어 · 배경색 · 설정 아이콘 → 스크롤 강조
+    await pg.fill('#k_suffix', '_test'); await pg.wait_for_timeout(200)
+    async with pg.expect_download() as d: await pg.click('#sPng')
+    print('14 name:', (await d.value).suggested_filename, '|', await pg.text_content('#nmEx'))
+    await pg.click('#bgBox [data-bg="#111111"]'); await pg.click('#rail [data-sec=brush]'); await pg.wait_for_timeout(900)
+    print('15 bg:', await pg.evaluate("document.getElementById('stage').style.background"), '| hl:', await pg.evaluate("document.querySelector('#drawer .sec.hl').dataset.sec"), '| top:', await pg.text_content('#topline'))
+    await pg.screenshot(path=OUT('8_layout.png'))
     # 새로고침 후 마지막 설정 기억
     await pg.reload(); await pg.wait_for_timeout(500)
     print('8 reload:', await pg.text_content('#presetBtn'), await pg.input_value('#k_cut'))
