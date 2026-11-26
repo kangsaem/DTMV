@@ -28,7 +28,7 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--blue);margin:0}
 .sep{width:1px;height:24px;background:var(--line);margin:0 4px;flex:none}
 .seg{display:flex;gap:0}.seg button{height:32px!important;font-size:12px}
 .grow{flex:1}
-#mstat{color:var(--sub);font-size:12px;display:flex;align-items:center;gap:8px;white-space:nowrap}
+#mstat{color:var(--sub);font-size:12px;display:flex;align-items:center;gap:8px;white-space:nowrap;min-width:0;flex:0 1 auto;overflow:hidden}#mtext{overflow:hidden;text-overflow:ellipsis}#bot>*:not(#mstat):not(.grow){flex:none}
 #mbar{width:90px;height:5px;background:var(--deep);border:1px solid var(--line);display:none}
 #mbar i{display:block;height:100%;width:0;background:var(--edge)}
 .ver{font-size:11px;color:var(--sub);margin-right:4px;white-space:nowrap}
@@ -75,7 +75,7 @@ input[type=range]::-moz-range-thumb{width:9px;height:15px;border-radius:0;backgr
 #stage{position:relative;overflow:hidden;background:radial-gradient(var(--dot) 1px,transparent 1.2px) 0 0/14px 14px,var(--desk)}
 #stage.drag{box-shadow:inset 0 0 0 3px var(--edge)}
 #cv{position:absolute;inset:0;width:100%;height:100%}
-#cv.paint{cursor:none}
+#cv.paint{cursor:none}#cv.pan,#cv.pan.paint{cursor:grab}#cv.panning{cursor:grabbing!important}#zlab{min-width:58px}
 #empty{position:absolute;inset:0;display:grid;place-items:center;color:#8a857e;font-size:15px;pointer-events:none}
 #busy{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:rgba(38,38,38,.92);color:var(--ink);border:1px solid #555;padding:5px 12px;font-size:12px;display:none;z-index:3}
 #hv{position:absolute;pointer-events:none;background:rgba(38,38,38,.92);border:1px solid #555;padding:2px 7px;font-size:11px;display:none;white-space:nowrap}
@@ -104,7 +104,7 @@ body{grid-template-rows:minmax(0,1fr)}
 #topline{display:flex;align-items:center;gap:12px;padding:0 12px;border-bottom:1px solid var(--line);background:#1f1f1f;font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden}
 #topline b{color:var(--ink);font-weight:500;overflow:hidden;text-overflow:ellipsis}
 #topline .key{border:1px solid #6e5a1e;color:var(--key);padding:0 8px;background:#2b2614}
-.rlogo{display:flex;justify-content:center;padding:8px 2px 12px;border-bottom:1px solid var(--line);margin-bottom:4px}.rlogo svg{height:12px;width:auto}
+.rlogo{display:flex;justify-content:center;align-items:center;height:41px;padding:0 0 6px;border-bottom:1px solid var(--line);margin:-2px 0 4px}#rail .rlogo svg{width:50px;height:auto}
 #mid{grid-template-rows:26px minmax(0,1fr) 48px}
 #bot{display:flex;align-items:center;gap:6px;padding:0 10px;border-top:1px solid var(--line);min-width:0;overflow:hidden}
 #bot button{height:32px;min-width:32px;padding:0 9px;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;flex:none;font-size:12px}
@@ -142,7 +142,7 @@ body{grid-template-rows:minmax(0,1fr)}
 #bgBox input{width:22px;height:22px;padding:0;border:1px solid #666;cursor:pointer;background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red)}
 main{grid-template-columns:64px 330px minmax(0,1fr) 360px}
 @media(min-width:2400px){main{grid-template-columns:72px 360px minmax(0,1fr) 400px}}
-@media(max-width:1400px){main{grid-template-columns:56px 290px minmax(0,1fr) 300px}.hide-sm{display:none!important}#bot .lbl{display:none}#pvBox{width:210px}}
+@media(max-width:1400px){main{grid-template-columns:56px 290px minmax(0,1fr) 300px}.hide-sm{display:none!important}#bot .lbl{display:none}#pvBox{width:210px}#bot .seg button{padding:0 8px}#zlab{min-width:48px}#bot{gap:4px}#bot .sep{margin:0 2px}}
 #ctx{position:fixed;z-index:15;display:none;background:#262626;border:1px solid #555;padding:3px;min-width:150px}
 #ctx button{display:flex;justify-content:space-between;width:100%;background:none;border:0;text-align:left;height:26px;font-size:12px}
 #ctx button:hover{background:var(--blue)}#ctx small{color:var(--sub)}
@@ -193,7 +193,7 @@ main{grid-template-columns:64px 330px minmax(0,1fr) 360px}
     </div>
   </aside>
   <section id="mid">
-    <div id="topline"><b id="cname">사진 없음</b><span id="cinfo"></span><span id="ckey"></span><span class="grow"></span><span class="ver">Vector Man v0.8.3</span></div>
+    <div id="topline"><b id="cname">사진 없음</b><span id="cinfo"></span><span id="ckey"></span><span class="grow"></span><span class="ver">Vector Man v0.8.4</span></div>
     <div id="stage">
       <canvas id="cv"></canvas>
       <div id="empty">사진을 끌어다 놓기</div>
@@ -221,6 +221,13 @@ main{grid-template-columns:64px 330px minmax(0,1fr) 360px}
     <button data-m="+" class="b" title="점 많이: 칠한 곳 허용 오차를 줄임">+</button>
     <button data-t="0" class="b" title="지우개 (E) · 칠한 곳을 전체 값으로">지우개</button>
     <button id="zclear" class="b" title="칠한 영역 표시만 모두 지우기 · 브러시로 바꾼 결과는 그대로 (결과를 없애려면 지우개)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" stroke-dasharray="3 2"/><path d="M8 8l8 8M16 8l-8 8"/></svg><span class="lbl">전체 지우기</span></button>
+  </div>
+      <span class="sep"></span>
+      <div id="zoom" class="seg">
+    <button data-z="-" class="b" title="축소 (−)">−</button>
+    <button data-z="fit" id="zlab" class="b" title="배율 · 누르면 화면 맞춤 (0 · 더블클릭)">100%</button>
+    <button data-z="+" class="b" title="확대 (+) · 휠 = 커서 위치에서 확대·축소">+</button>
+    <button data-z="fit" class="b hide-sm" title="화면 맞춤 (0)">맞춤</button>
   </div>
       <span class="grow"></span>
       <div id="mstat"><span id="mtext">엔진 대기</span><div id="mbar"><i></i></div></div>
@@ -829,7 +836,7 @@ $('presetPane').onclick = async e => {
   } else if (a.dataset.a === 'reset') { applyPreset(BUILTIN[0]); drawPList(); }
   else if (a.dataset.a === 'exp') {
     if (!userPresets.length) { popup('내보낼 사용자 프리셋이 없습니다.', [['ok', '확인']]); return; }
-    save(new Blob([JSON.stringify({ app: 'vectorman', version: '0.8.3', presets: userPresets.map(p => ({ name: p.name, values: p.v })) }, null, 2)], { type: 'application/json' }), 'vectorman_presets.json');
+    save(new Blob([JSON.stringify({ app: 'vectorman', version: '0.8.4', presets: userPresets.map(p => ({ name: p.name, values: p.v })) }, null, 2)], { type: 'application/json' }), 'vectorman_presets.json');
   } else if (a.dataset.a === 'imp') $('fpreset').click();
 };
 function savePresets() { if (!store.set('vman.presets', userPresets)) popup('이 브라우저에 저장하지 못했습니다.\n내보내기로 파일에 백업하세요.', [['ok', '확인']]); }
@@ -1075,7 +1082,7 @@ function removeItem(i) {   // 목록에서 빼기(파일은 그대로). 되돌�
 }
 function deleteSel() { if (sel < 0 || !items[sel]) return; const n = items[sel].name; pushHist(removeItem(sel)); flash(`'${n}' 목록에서 뺌 · Ctrl+Z로 복구`); }
 async function select(i) {
-  sel = i; drawList();
+  sel = i; drawList(); zm.z = 1; zm.x = zm.y = 0; zlab();
   const it = items[i]; busy('불러오는 중…');
   if (cur && cur.bmp) cur.bmp.close();
   cur = { bmp: await createImageBitmap(it.file), it }; res = null; crumb();
@@ -1107,13 +1114,30 @@ function crumb() {   // 가는 윗줄: 파일 이름 · 크기 · 상태 · 브�
   const k = $('ckey'); k.className = tool !== 'view' ? 'key' : ''; k.textContent = tool === '1' ? '브러시 ' + (bmode === '+' ? '+ 점 많이' : '− 점 적게') + ' · Alt·오른쪽 버튼 = 반대 · [ ] 크기' : tool === '0' ? '지우개' : '';
   if ($('nmEx')) nameEx();
 }
+/* ================= 확대·축소 (보기 전용 · 100% = 화면 맞춤) ================= */
+const zm = { z: 1, x: 0, y: 0,
+  clamp(w, h, Wc, Hc) {   // 사진이 작업대 밖으로 다 나가지 않게
+    const mx = Math.max(0, (w - Wc) / 2 + 40), my = Math.max(0, (h - Hc) / 2 + 40);
+    this.x = Math.max(-mx, Math.min(mx, this.x)); this.y = Math.max(-my, Math.min(my, this.y));
+  } };
+function zoomTo(z, cx, cy) {   // cx,cy = 화면 좌표 (이 점이 제자리에 머묾)
+  if (!cur || !cur.vw) return;
+  const cv = $('cv'), Wc = cv.clientWidth, Hc = cv.clientHeight; z = Math.max(1, Math.min(16, z));
+  if (cx == null) { cx = Wc / 2; cy = Hc / 2; }
+  const v = cur.vw, ix = (cx - v.ox) / v.s, iy = (cy - v.oy) / v.s, s2 = v.s / zm.z * z, W = cur.bmp.width, H = cur.bmp.height;
+  zm.z = z; zm.x = z === 1 ? 0 : cx - ix * s2 - (Wc - W * s2) / 2; zm.y = z === 1 ? 0 : cy - iy * s2 - (Hc - H * s2) / 2;
+  zlab(); draw();
+}
+const zoomFit = () => { zm.z = 1; zm.x = zm.y = 0; zlab(); draw(); };
+function zlab() { const l = $('zlab'); if (l) l.textContent = Math.round(zm.z * 100) + '%'; }
 function draw() {
   const cv = $('cv'), dpr = devicePixelRatio || 1, Wc = cv.clientWidth, Hc = cv.clientHeight;
   cv.width = Wc * dpr; cv.height = Hc * dpr;
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, Wc, Hc);
   if (!cur) return;
-  const W = cur.bmp.width, H = cur.bmp.height, s = Math.min((Wc - 56) / W, (Hc - 56) / H), ox = (Wc - W * s) / 2, oy = (Hc - H * s) / 2;
-  cur.vw = { ox, oy, s };
+  const W = cur.bmp.width, H = cur.bmp.height, s0 = Math.min((Wc - 56) / W, (Hc - 56) / H), s = s0 * zm.z;
+  zm.clamp(W * s, H * s, Wc, Hc); const ox = (Wc - W * s) / 2 + zm.x, oy = (Hc - H * s) / 2 + zm.y;
+  cur.vw = { ox, oy, s }; window.__vw = cur.vw;   // 테스트용
   g.save(); g.shadowColor = 'rgba(0,0,0,.3)'; g.shadowBlur = 26; g.shadowOffsetY = 8; g.fillStyle = '#fff'; g.fillRect(ox, oy, W * s, H * s); g.restore();   // 작업대 위 종이
   const paperBg = def => {   // 사진 영역 배경: 오른쪽 아래 배경색 (기본 = 보기마다 다름)
     const v = bgVal === 'auto' ? def : bgVal;
@@ -1230,6 +1254,25 @@ $('tools').onclick = e => {
   setTool(b.dataset.t);
 };
 const cvPos = e => { const r = $('cv').getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+let spaceDown = false, panning = null;
+$('cv').addEventListener('wheel', e => {
+  if (!cur || !cur.vw) return; e.preventDefault();
+  const [x, y] = cvPos(e); zoomTo(zm.z * Math.pow(1.0015, -e.deltaY * (e.deltaMode ? 33 : 1)), x, y);
+}, { passive: false });
+$('cv').addEventListener('pointerdown', e => {   // 스페이스+드래그 · 가운데 버튼 = 화면 이동
+  if (!cur || !(spaceDown || e.button === 1)) return;
+  e.preventDefault(); e.stopImmediatePropagation(); $('cv').setPointerCapture(e.pointerId);
+  panning = { x: e.clientX, y: e.clientY, zx: zm.x, zy: zm.y }; $('cv').classList.add('panning');
+});
+$('cv').addEventListener('pointermove', e => {
+  if (!panning) return; e.stopImmediatePropagation();
+  zm.x = panning.zx + e.clientX - panning.x; zm.y = panning.zy + e.clientY - panning.y; draw();
+});
+const endPan = e => { if (!panning) return; e.stopImmediatePropagation(); panning = null; $('cv').classList.remove('panning'); };
+$('cv').addEventListener('pointerup', endPan); $('cv').addEventListener('pointercancel', endPan);
+$('cv').addEventListener('auxclick', e => { if (e.button === 1) e.preventDefault(); });
+$('cv').addEventListener('dblclick', () => { if (tool === 'view') zoomFit(); });   // 브러시 중엔 두 번 칠해지므로 보기 도구에서만
+$('zoom').onclick = e => { const b = e.target.closest('button'); if (!b) return; const z = b.dataset.z; z === 'fit' ? zoomFit() : zoomTo(zm.z * (z === '+' ? 1.25 : 0.8)); };
 $('cv').addEventListener('pointerdown', e => {
   if (tool === 'view' || !cur || !cur.it.mask || !cur.vw) return;
   $('cv').setPointerCapture(e.pointerId); commitHist();
@@ -1332,7 +1375,7 @@ $('k_suffix').addEventListener('input', e => { snap(); S.suffix = e.target.value
 function setView(v) { view = v; [...$('views').querySelectorAll('button')].forEach(x => x.classList.toggle('on', x.dataset.v === v)); draw(); }
 $('views').onclick = e => { const b = e.target.closest('button'); if (b) setView(b.dataset.v); };
 let altDown = false;
-document.addEventListener('keyup', e => { if (e.key === 'Alt') { altDown = false; if (tool !== 'view') { e.preventDefault(); draw(); } } });
+document.addEventListener('keyup', e => { if (e.key === ' ' && spaceDown) { spaceDown = false; $('cv').classList.remove('pan'); e.preventDefault(); } if (e.key === 'Alt') { altDown = false; if (tool !== 'view') { e.preventDefault(); draw(); } } });
 document.addEventListener('keydown', e => {
   if (e.key === 'Alt') { altDown = true; if (tool !== 'view') { e.preventDefault(); draw(); } return; }
   if ($('pop').classList.contains('open')) return;
@@ -1343,6 +1386,12 @@ document.addEventListener('keydown', e => {
   }
   if (e.target.matches('input[type=text]')) return;
   if (e.key === 'Delete' && !e.target.matches('select,input')) { e.preventDefault(); deleteSel(); return; }
+  if (e.key === ' ' && !e.target.matches('select,input,textarea')) { e.preventDefault(); if (!spaceDown) { spaceDown = true; $('cv').classList.add('pan'); } return; }
+  if (!e.ctrlKey && !e.metaKey && !e.target.matches('select,input')) {
+    if (e.key === '0') { zoomFit(); return; }
+    if (e.key === '+' || e.key === '=') { zoomTo(zm.z * 1.25); return; }
+    if (e.key === '-' || e.key === '_') { zoomTo(zm.z * 0.8); return; }
+  }
   const v = { 1: 'line', 2: 'vmask', 3: 'cut', 4: 'mask' }[e.key]; if (v) setView(v);
   if (!e.ctrlKey && !e.metaKey && !e.altKey) {
     const tk = { v: 'view', b: '1', e: '0' }[e.key.toLowerCase()]; if (tk) setTool(tk);
