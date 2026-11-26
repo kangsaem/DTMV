@@ -139,7 +139,7 @@ input[type=range]::-moz-range-thumb{width:9px;height:15px;border-radius:0;backgr
   </div>
   <span class="grow"></span>
   <div id="mstat"><span id="mtext">엔진 대기</span><div id="mbar"><i></i></div></div>
-  <span class="ver">v0.7.0</span>
+  <span class="ver">v0.7.1</span>
   <button id="add" class="b" title="사진 추가 (끌어다 놓기 가능)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><rect x="3" y="5" width="18" height="14"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/></svg> 사진 추가</button>
   <button id="runAll" class="b" disabled title="목록의 모든 사진을 처리">전체 처리</button>
   <button id="sSvgTop" class="b red" disabled title="선택한 사진의 벡터 SVG 저장">SVG 저장</button>
@@ -748,7 +748,7 @@ $('presetPane').onclick = async e => {
   } else if (a.dataset.a === 'reset') { applyPreset(BUILTIN[0]); drawPList(); }
   else if (a.dataset.a === 'exp') {
     if (!userPresets.length) { popup('내보낼 사용자 프리셋이 없습니다.', [['ok', '확인']]); return; }
-    save(new Blob([JSON.stringify({ app: 'vectorman', version: '0.7.0', presets: userPresets.map(p => ({ name: p.name, values: p.v })) }, null, 2)], { type: 'application/json' }), 'vectorman_presets.json');
+    save(new Blob([JSON.stringify({ app: 'vectorman', version: '0.7.1', presets: userPresets.map(p => ({ name: p.name, values: p.v })) }, null, 2)], { type: 'application/json' }), 'vectorman_presets.json');
   } else if (a.dataset.a === 'imp') $('fpreset').click();
 };
 function savePresets() { if (!store.set('vman.presets', userPresets)) popup('이 브라우저에 저장하지 못했습니다.\n내보내기로 파일에 백업하세요.', [['ok', '확인']]); }

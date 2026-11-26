@@ -35,6 +35,13 @@ MEAN = np.array([0.485, 0.456, 0.406], np.float32)
 STD = np.array([0.229, 0.224, 0.225], np.float32)
 
 
+for _s in (sys.stdout, sys.stderr):   # 창 없이(파이프) 실행될 때 한글 출력 오류 방지
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+
 def log(*a):
     print(time.strftime("%H:%M:%S"), *a, flush=True)
 
@@ -84,8 +91,11 @@ class Engine:
             self.state.update(ready=True, size=self.size)
             log(f"준비됨 · {self.state['device']} · 입력 {self.size}px · {self.in_type}")
         except Exception as e:
-            traceback.print_exc()
             self.state["error"] = str(e)
+            try:
+                traceback.print_exc()
+            except Exception:
+                pass
         finally:
             self.state["loading"] = False
 
