@@ -1,21 +1,85 @@
-# PC 엔진 Windows exe 빌드 → 릴리스 (모델 포함 zip)
-# 실행: Actions 탭에서 "PC 엔진 빌드" → Run workflow, 또는 태그 pc-v* 푸시
+# PC 엔진 Windows exe 빌드 → 릴리스 (모델 포함 zip) — 배포 흐름 = docs/RELEASE_GUIDE.md (DTMC 방식)
+#   main 에 올라옴 → (update/ 에 zip 이 있으면) unpack 이 풀고 build.py 로 화면을 다시 만들어 커밋
+#   → 같은 실행 안에서 build 가 그 커밋으로 exe 빌드 · 실행 확인
+#   → VERSION 이 가장 최근 pc-v 릴리스보다 높으면 릴리스 pc-v<버전> (수동 실행 'release' 체크 · 태그 pc-v* 도 릴리스)
+#   Actions 가 한 커밋은 새 실행을 깨우지 않으므로 풀기 → 빌드를 한 실행에 둠.
 name: PC 엔진 빌드
 on:
-  workflow_dispatch:
   push:
-    tags: ['pc-v*']
+    branches: [main]
+    paths-ignore: ["**.md"]
+    tags: ["pc-v*"]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "릴리스 올리기 (버전이 같아도 — 같은 버전이면 파일 바꿔 올림)"
+        type: boolean
+        default: false
+      smoke:
+        description: "실제 사진 한 장 처리까지 확인 (GPU 없는 빌드 서버라 수십 분)"
+        type: boolean
+        default: false
 permissions:
   contents: write
+concurrency:
+  group: pc-build-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  unpack:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.go.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: zip 하나로 고치기 (update/*.zip 풀기 → 화면 다시 만들기 → 커밋)
+        id: go
+        run: |
+          python3 tools/apply_update.py . || { echo "zip 안에 막힌 경로가 있어 아무것도 안 바꿨습니다 (요약 참고)"; exit 1; }
+          python3 build.py
+          git checkout -- pc/app 2>/dev/null || true
+          if [ -n "$(git status --porcelain -- . ':!pc/app')" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A -- . ':!pc/app'
+            git commit -q -m "update: zip 풀기 · 화면 다시 만들기 ($(git log -1 --format=%h))"
+            git push -q origin HEAD:main
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: unpack
+    if: ${{ !cancelled() && needs.unpack.result != 'failure' }}
     runs-on: windows-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     defaults:
       run:
         shell: pwsh
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.unpack.outputs.sha || github.sha }}
+      - name: 버전 · 릴리스할지
+        id: rel
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = (Get-Content VERSION).Trim()
+          "VER=$v" | Out-File -Append $env:GITHUB_ENV
+          $cur = ""
+          try { $cur = (gh api "repos/${{ github.repository }}/releases?per_page=50" --jq '[.[] | select(.tag_name | startswith("pc-v"))][0].tag_name') -replace '^pc-v','' } catch {}
+          $go = $false
+          if ("${{ github.event_name }}" -eq "workflow_dispatch" -and "${{ inputs.release }}" -eq "true") { $go = $true; $why = "수동 실행 (release)" }
+          elseif ("${{ github.ref }}".StartsWith("refs/tags/pc-v")) { $go = $true; $why = "태그" }
+          elseif ("${{ github.ref }}" -eq "refs/heads/main") {
+            if (-not $cur) { $go = $true; $why = "릴리스가 아직 없음" }
+            elseif ([version]$v -gt [version]$cur) { $go = $true; $why = "새 버전 $v > 릴리스된 $cur" }
+            else { $why = "버전 그대로 ($v · 릴리스된 $cur) — 빌드 · 확인만" }
+          }
+          Write-Host "릴리스: $go — $why"
+          "go=$($go.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "### Vector Man v$v · 릴리스: $go — $why" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -40,18 +104,20 @@ jobs:
           Copy-Item -Recurse models dist/VectorMan/models
           Copy-Item pc/README_PC.txt dist/VectorMan/README.txt
           Copy-Item pc/LICENSES.txt dist/VectorMan/LICENSES.txt
-          Get-ChildItem dist/VectorMan | Format-Table Name, Length
-      - name: 실행 확인 (러너에는 GPU 없음 → CPU 또는 소프트웨어 DirectML)
-        continue-on-error: true
-        timeout-minutes: 40
-        run: python pc/smoke.py dist/VectorMan
+          $env:VER | Out-File -Encoding ascii -NoNewline dist/VectorMan/VERSION.txt
+          Rename-Item dist/VectorMan "VectorMan-v$env:VER"
+          Get-ChildItem "dist/VectorMan-v$env:VER" | Format-Table Name, Length
+      - name: 실행 확인 (켜지고 모델이 올라오는지 · smoke 체크 시 사진 한 장까지)
+        timeout-minutes: 60
+        run: |
+          if ("${{ inputs.smoke }}" -eq "true") { python pc/smoke.py "dist/VectorMan-v$env:VER" } else { python pc/smoke.py "dist/VectorMan-v$env:VER" --start-only }
       - name: 압축
         run: |
-          $ver = (Get-Content VERSION).Trim()
-          "VER=$ver" | Out-File -Append $env:GITHUB_ENV
-          7z a -tzip "VectorMan-PC-v$ver-win64.zip" ./dist/VectorMan
-          "zip bytes: " + (Get-Item "VectorMan-PC-v$ver-win64.zip").Length
+          7z a -tzip "VectorMan-PC-v$env:VER-win64.zip" "./dist/VectorMan-v$env:VER"
+          "zip bytes: " + (Get-Item "VectorMan-PC-v$env:VER-win64.zip").Length
+          Get-FileHash "VectorMan-PC-v$env:VER-win64.zip" -Algorithm SHA256 | Format-List
       - name: 릴리스 올리기
+        if: steps.rel.outputs.go == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -59,4 +125,4 @@ jobs:
           $zip = "VectorMan-PC-v$env:VER-win64.zip"
           gh release view $tag 2>$null
           if ($LASTEXITCODE -eq 0) { gh release upload $tag $zip --clobber }
-          else { gh release create $tag $zip --target $env:GITHUB_SHA --title "Vector Man PC 엔진 v$env:VER" --notes-file pc/README_PC.txt }
+          else { gh release create $tag $zip --target (git rev-parse HEAD) --latest --title "Vector Man PC 엔진 v$env:VER" --notes-file pc/README_PC.txt }

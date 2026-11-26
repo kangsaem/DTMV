@@ -1,5 +1,5 @@
-"""빌드된 exe 실행 확인: exe 를 --no-browser 로 켜고 /api/info 준비 → 2048 사진 1장 처리.
-실행: python pc/smoke.py dist/VectorMan"""
+"""빌드된 exe 실행 확인: exe 를 --no-browser 로 켜고 /api/info 준비 → (기본) 2048 사진 1장 처리.
+실행: python pc/smoke.py <exe 폴더> [--start-only = 켜지고 모델 올라오는 데까지만]"""
 import json, subprocess, sys, time, io, urllib.request
 from pathlib import Path
 from PIL import Image
@@ -18,7 +18,9 @@ try:
             pass
         time.sleep(2)
     print('info:', info, f'({time.time() - t:.0f}s)', flush=True)
-    if info['ready']:
+    if info['ready'] and '--start-only' in sys.argv:
+        ok = True   # 켜지고 모델이 올라옴 — 사진 처리는 smoke 체크 때만
+    elif info['ready']:
         n = info['size']; im = Image.open(Path(__file__).parent.parent / 'tests/person.jpg').convert('RGB').resize((n, n))
         b = io.BytesIO(); im.save(b, 'PNG')
         t = time.time()

@@ -1,5 +1,7 @@
 # HANDOFF — Vector Man (벡터맨)
 
+> **규칙(v0.7.3 — 사용자 11/26, DTMC 방식)**: 고친 파일은 **저장소와 같은 폴더 구조의 zip 하나**(`vman-update-v<버전>.zip`)로 주고(지울 파일 = zip 맨 위 `_delete.txt`), **배포할 때만 `VERSION` 을 올림**(가장 최근 `pc-v` 릴리스보다 높으면 자동 릴리스). 사용자는 그 zip 을 저장소 `update/` 에 올리고 Commit — 나머지는 Actions(`docs/RELEASE_GUIDE.md`). `.github/` 는 zip 으로 못 바꿈. `web/vectorman.html` 은 Actions 가 `build.py` 로 다시 만듦(zip 에 `src/` 만 넣어도 됨).
+
 스틸 사진에서 인물(상반신·전신, 머리카락·모자·안경·옷 포함) 외곽선을 **벡터(SVG 패스)**로 따는 도구.
 다음 대화는 이 문서를 기준으로 이어서 작업한다.
 
@@ -30,6 +32,8 @@
 | `pc/smoke.py` | 빌드된 exe 실행 확인 |
 | `.github/workflows/pc-build.yml` | Windows exe 빌드(PyInstaller onedir) + 모델 받기 + 릴리스 `pc-v버전` |
 | `tests/e2e_pc.py` | PC 엔진 자동 테스트(가짜 2048 모델, `fp16` 인자) |
+| `tools/apply_update.py` | update/*.zip 풀기(DTMC 와 같은 코드) |
+| `docs/RELEASE_GUIDE.md` · `update/README.md` | zip 하나로 새 버전 내는 법 |
 | `tests/e2e.py` | 크롬 자동 테스트(가짜 모델). 먼저 `tests/setup_vend.sh` |
 
 ## 3. 계획
@@ -55,6 +59,7 @@
 - `vman.last` 에 `ver:3` — 예전 설정(단순화 뜻 다름)은 버림.
 
 ## 6. 변경 이력 (최신순)
+- v0.7.3 (2026-11-26) 배포 = DTMC 방식(update/ 에 zip → 풀기·화면 다시 만들기·커밋 → exe 빌드 → VERSION 이 최근 릴리스보다 높으면 릴리스 pc-v<버전>, latest 표시). zip 안 폴더 이름 `VectorMan-v<버전>` + VERSION.txt. 빌드 서버 실행 확인은 기본 '켜지고 모델 올라오는 데까지'(사진 처리는 수동 실행 smoke 체크 때만 — CPU 로 수십 분)
 - v0.7.2 (2026-11-26) PC 엔진: 4090 에서 DirectML 계산 오류(DmlFusedNode 887A0001) → 설정 단계적 재시도(기본 → 그래프 묶기 끔 → 최적화 끔 → CPU), enable_mem_pattern=False·순차 실행, 한글 윈도우 오류 문구 해독 실패(UnicodeDecodeError) 정리, 바뀐 장치를 화면 상태에 반영. `--cpu` 로 CPU 강제
 - v0.7.1 (2026-11-26) PC 엔진: 창 없이(파이프) 실행 시 한글 출력으로 멈추던 문제(UnicodeEncodeError) 수정 → 빌드 서버 실행 확인 통과용
 - v0.7.0 (2026-11-26) PC 엔진(Windows exe, DirectML, BiRefNet_HR-matting 2048, 완전 오프라인), 마스크 크기 자동(1024/2048), 아이콘·README·LICENSES
