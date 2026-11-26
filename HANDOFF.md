@@ -26,11 +26,15 @@
 | `build.py` | src → `web/vectorman.html` 한 파일로 합치기 |
 | `tests/test_core.js` | 엔진 단위 테스트 (`node tests/test_core.js`) |
 | `tests/compare_curve.js` | 곡선 정확도 비교(실제 마스크, 점 수 vs 오차) |
+| `pc/vectorman_pc.py` | PC 엔진: 127.0.0.1 서버(화면 + /api/info + /api/infer), ONNX Runtime DirectML→CPU, models/ 첫 .onnx |
+| `pc/smoke.py` | 빌드된 exe 실행 확인 |
+| `.github/workflows/pc-build.yml` | Windows exe 빌드(PyInstaller onedir) + 모델 받기 + 릴리스 `pc-v버전` |
+| `tests/e2e_pc.py` | PC 엔진 자동 테스트(가짜 2048 모델, `fp16` 인자) |
 | `tests/e2e.py` | 크롬 자동 테스트(가짜 모델). 먼저 `tests/setup_vend.sh` |
 
 ## 3. 계획
 1. ~~웹: DTME 스타일 UI, 설정 묶음, 프리셋~~ (v0.2.0 완료) → 사용자 실사진 테스트 대기
-2. PC 엔진: BiRefNet_HR-matting(2048) + RTX 4090. 같은 화면에서 엔진만 선택. Windows exe 는 GitHub Actions 빌드(DTME 방식 참고)
+2. PC 엔진(v0.7.0~): exe → 로컬 서버 → 같은 화면(PC 판: ONNX Runtime Web 빼고 JSZip 로컬). 모델 PinkPixel/birefnet-hr-matting-onnx `model_fp16.onnx`(450MB, 입력 image 1×3×2048×2048, 출력 alpha 시그모이드 포함)를 빌드 때 받아 zip 에 포함. 화면은 127.0.0.1 로 열리면 PC 모드(`PC` 상수) → /api/info 대기, 사진을 2048 정사각 PNG 로 보내 uint8 마스크 받음. 실기(4090) 확인 대기.
 
 ## 4. 설정·프리셋 구조 (v0.2.0~)
 - 설정 정의는 `src/template.html` 의 `GROUPS` 배열 한 곳 → 화면·기본값·프리셋이 모두 여기서 나옴. 새 설정 = 배열에 한 줄 + `opts()`/출력 코드에 반영.
@@ -49,6 +53,7 @@
 - `vman.last` 에 `ver:3` — 예전 설정(단순화 뜻 다름)은 버림.
 
 ## 6. 변경 이력 (최신순)
+- v0.7.0 (2026-11-26) PC 엔진(Windows exe, DirectML, BiRefNet_HR-matting 2048, 완전 오프라인), 마스크 크기 자동(1024/2048), 아이콘·README·LICENSES
 - v0.6.1 (2026-11-26) 상단바 'Vector Man' 글자 빼고 VM 로고만
 - v0.6.0 (2026-11-26) WMW 구조 UI(시안 A)·VM 로고(A)·파비콘, 설정은 아이콘 줄로 묶음 전환, 프리셋 패널 고정, 사진 줄(아래), 결과 패널(점 수 크게·패스·오차·크기·시간), 작업대 위 종이 그림자, 비트맵 보기 체크무늬, 미리보기 '배경' 설정 제거
 - v0.5.3 (2026-11-25) 벡터 마스크 보기에서도 브러시 칠하기·영역 표시·값 표시

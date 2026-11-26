@@ -457,6 +457,8 @@ function popup(msg, buttons, text) {
 
 /* ================= 모델 ================= */
 const MODEL_URL = 'MODEL_URL_PH', MS = 1024;
+// PC 엔진: exe 가 띄운 로컬 서버(127.0.0.1)에서 열렸으면 AI 계산은 서버가 함
+const PC = /^https?:$/.test(location.protocol) && /^(127\.0\.0\.1|localhost)$/.test(location.hostname);
 let session = null, sessionP = null, device = '', inType = 'float32';
 function mstat(t, p) {
   $('mtext').textContent = t;
@@ -494,9 +496,18 @@ async function makeSession(buf) {
   mstat('CPU 준비 중…');
   const s = await ort.InferenceSession.create(bytes, { executionProviders: ['wasm'] }); device = 'CPU'; return s;
 }
+async function pcSession() {   // PC 엔진 준비될 때까지 기다림
+  for (let k = 0; ; k++) {
+    const r = await (await fetch('/api/info', { cache: 'no-store' })).json();
+    if (r.ready) { device = r.device; mstat(`PC · ${r.device} · ${r.size}px`); return { pc: true, size: r.size, info: r }; }
+    if (!r.loading) throw new Error(r.error || 'PC 엔진 오류');
+    mstat('PC 엔진 준비 중 (모델 불러오는 중)…'); await new Promise(z => setTimeout(z, 700));
+  }
+}
 function ensureModel(buf) {
   if (session) return Promise.resolve(session);
   if (!sessionP) sessionP = (async () => {
+    if (PC) { try { session = await pcSession(); return session; } catch (e) { sessionP = null; mstat('엔진 오류: ' + e.message); throw e; } }
     try {
       mstat('엔진 준비 중…', 0);
       session = await makeSession(buf || await fetchModel());
@@ -519,6 +530,13 @@ function f16ToF32(h) {
 }
 async function infer(bmp) {
   const s = await ensureModel();
+  if (s.pc) {   // 모델 크기 정사각 PNG 로 보내고 uint8 마스크를 받음
+    const n = s.size, c = new OffscreenCanvas(n, n), g = c.getContext('2d');
+    g.imageSmoothingQuality = 'high'; g.drawImage(bmp, 0, 0, n, n);
+    const r = await fetch('/api/infer', { method: 'POST', body: await c.convertToBlob({ type: 'image/png' }) });
+    if (!r.ok) { let m = r.status; try { m = (await r.json()).error; } catch (e) {} throw new Error(m); }
+    return new Uint8Array(await r.arrayBuffer());
+  }
   const c = new OffscreenCanvas(MS, MS), g = c.getContext('2d');
   g.drawImage(bmp, 0, 0, MS, MS);
   const px = g.getImageData(0, 0, MS, MS).data, N = MS * MS, x = new Float32Array(3 * N);
@@ -543,8 +561,8 @@ function opts(scale, it) {
            offset: Math.round(S.offset / scale), cut: S.cut ? Math.max(1, Math.round(S.cut / scale)) : 0, scale };
 }
 function workSize(w, h) { const r = Math.min(1, +S.res / Math.max(w, h)); return [Math.max(1, Math.round(w * r)), Math.max(1, Math.round(h * r))]; }
-function maskCanvas(mask) {
-  const c = new OffscreenCanvas(MS, MS), g = c.getContext('2d'), id = g.createImageData(MS, MS);
+function maskCanvas(mask) {   // 정사각 마스크(1024 브라우저 · 2048 PC)
+  const n = Math.round(Math.sqrt(mask.length)), c = new OffscreenCanvas(n, n), g = c.getContext('2d'), id = g.createImageData(n, n);
   for (let i = 0; i < mask.length; i++) { const v = mask[i]; id.data[i * 4] = id.data[i * 4 + 1] = id.data[i * 4 + 2] = v; id.data[i * 4 + 3] = 255; }
   g.putImageData(id, 0, 0); return c;
 }
@@ -885,6 +903,11 @@ $('pickModel').onclick = () => $('fmodel').click();
 $('fmodel').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f || session) return; sessionP = null; try { await ensureModel(await f.arrayBuffer()); } catch (er) {} };
 const ro = new ResizeObserver(() => draw()); ro.observe($('stage'));
 buildGroups(); syncUI(); setSec(store.get('vman.sec', 'curve')); crumb();
+if (PC) {
+  const sel = $('engine'); sel.querySelector('[value=pc]').disabled = false; sel.querySelector('[value=pc]').textContent = 'PC 엔진 · HR-matting 2048'; sel.value = 'pc';
+  sel.querySelector('[value=web]').disabled = typeof ort === 'undefined'; $('pickModel').hidden = true;
+  ensureModel().catch(() => {});
+}
 }
 </script>
 </body>

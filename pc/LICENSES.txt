@@ -1,0 +1,40 @@
+Vector Man PC 엔진에 포함된 구성 요소와 라이선스
+=================================================
+
+1. BiRefNet / BiRefNet_HR-matting (AI 모델 가중치)
+   https://github.com/ZhengPeng7/BiRefNet — MIT License, Copyright (c) 2024 Peng Zheng
+   ONNX 변환본: https://huggingface.co/PinkPixel/birefnet-hr-matting-onnx (MIT)
+   참고: 학습 데이터 중 DIS5K 는 비상업 연구·교육 용도로만 허용되며 상업 사용은 저자 허락이 필요합니다.
+
+2. ONNX Runtime (onnxruntime-directml) — MIT License, Copyright (c) Microsoft Corporation
+   https://github.com/microsoft/onnxruntime
+   DirectML (DirectML.dll) — Microsoft DirectML 재배포 조건에 따름 https://github.com/microsoft/DirectML
+
+3. JSZip 3.10.1 — MIT License (MIT 또는 GPLv3 중 MIT 선택), Copyright (c) 2009-2016 Stuart Knightley 외
+   https://github.com/Stuk/jszip
+
+4. NumPy — BSD-3-Clause, Copyright (c) NumPy Developers
+5. Pillow — MIT-CMU (HPND), Copyright (c) Jeffrey A. Clark and contributors, Secret Labs AB, Fredrik Lundh
+6. Python — PSF License Agreement / PyInstaller 부트로더 — GPL 2.0 + 예외 조항(배포 프로그램에는 제한 없음)
+7. WMW Heros 글꼴 (TeX Gyre Heros 파생) — GUST Font License
+
+-----------------------------------------------------------------
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

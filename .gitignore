@@ -4,3 +4,8 @@ tests/out_*
 __pycache__/
 tests/.real_*
 tests/.cmp*
+pc/app/
+pc/models/
+build/
+dist/
+*.spec

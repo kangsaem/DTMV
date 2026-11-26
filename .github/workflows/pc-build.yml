@@ -1,0 +1,62 @@
+# PC 엔진 Windows exe 빌드 → 릴리스 (모델 포함 zip)
+# 실행: Actions 탭에서 "PC 엔진 빌드" → Run workflow, 또는 태그 pc-v* 푸시
+name: PC 엔진 빌드
+on:
+  workflow_dispatch:
+  push:
+    tags: ['pc-v*']
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: 패키지 설치
+        run: |
+          python -m pip install --upgrade pip
+          pip install onnxruntime-directml pillow numpy pyinstaller
+          python -c "import onnxruntime as o; print('onnxruntime', o.__version__, o.get_available_providers())"
+      - name: 화면 만들기 (인터넷 없이 쓰는 PC 판)
+        run: |
+          python build.py
+          New-Item -ItemType Directory -Force pc/app/vendor | Out-Null
+          curl.exe -L --fail -o pc/app/vendor/jszip.min.js https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js
+      - name: 모델 받기 (BiRefNet_HR-matting fp16, 2048)
+        run: |
+          New-Item -ItemType Directory -Force models | Out-Null
+          curl.exe -L --fail --retry 3 -o models/birefnet_hr_matting_fp16.onnx https://huggingface.co/PinkPixel/birefnet-hr-matting-onnx/resolve/main/model_fp16.onnx
+          "model bytes: " + (Get-Item models/birefnet_hr_matting_fp16.onnx).Length
+      - name: exe 만들기
+        run: |
+          pyinstaller --noconfirm --onedir --name VectorMan --icon assets/vm.ico --add-data "pc/app;app" --collect-all onnxruntime pc/vectorman_pc.py
+          Copy-Item -Recurse models dist/VectorMan/models
+          Copy-Item pc/README_PC.txt dist/VectorMan/README.txt
+          Copy-Item pc/LICENSES.txt dist/VectorMan/LICENSES.txt
+          Get-ChildItem dist/VectorMan | Format-Table Name, Length
+      - name: 실행 확인 (러너에는 GPU 없음 → CPU 또는 소프트웨어 DirectML)
+        continue-on-error: true
+        timeout-minutes: 40
+        run: python pc/smoke.py dist/VectorMan
+      - name: 압축
+        run: |
+          $ver = (Get-Content VERSION).Trim()
+          "VER=$ver" | Out-File -Append $env:GITHUB_ENV
+          7z a -tzip "VectorMan-PC-v$ver-win64.zip" ./dist/VectorMan
+          "zip bytes: " + (Get-Item "VectorMan-PC-v$ver-win64.zip").Length
+      - name: 릴리스 올리기
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "pc-v$env:VER"
+          $zip = "VectorMan-PC-v$env:VER-win64.zip"
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -eq 0) { gh release upload $tag $zip --clobber }
+          else { gh release create $tag $zip --target $env:GITHUB_SHA --title "Vector Man PC 엔진 v$env:VER" --notes-file pc/README_PC.txt }
