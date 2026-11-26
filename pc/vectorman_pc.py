@@ -12,6 +12,7 @@ AI(인물 마스크)는 이 프로그램이 ONNX Runtime 으로 계산한다. GP
 모델: 실행 파일 옆 models/ 폴더의 첫 .onnx (없으면 화면에 안내).
 """
 import io
+import os
 import json
 import socket
 import sys
@@ -42,6 +43,17 @@ for _s in (sys.stdout, sys.stderr):   # 창 없이(파이프) 실행될 때 한�
         pass
 
 
+def errtext(e):
+    """오류 문구. 한글 윈도우에서 ONNX Runtime 메시지가 cp949 라 utf-8 해독 오류로 가려지는 경우 정리"""
+    try:
+        s = str(e)
+    except Exception:
+        s = repr(e)
+    if isinstance(e, UnicodeDecodeError):
+        s = "AI 엔진 내부 오류 (메시지 해독 실패: 한글 윈도우 인코딩)"
+    return s[:300]
+
+
 def log(*a):
     print(time.strftime("%H:%M:%S"), *a, flush=True)
 
@@ -60,30 +72,57 @@ class Engine:
                     return ms[0]
         return None
 
+    # 시도 순서: DirectML 기본 → DirectML(그래프 묶기 끔) → DirectML(최적화 끔) → CPU
+    #  (일부 그래픽카드·드라이버에서 DmlFusedNode 실행 오류 887A0001 이 나서 단계적으로 낮춤)
+    CONFIGS = [("dml", "DirectML (GPU)"), ("dml-nofuse", "DirectML (GPU · 안전 모드)"), ("dml-noopt", "DirectML (GPU · 최적화 끔)"), ("cpu", "CPU")]
+
+    def make(self, kind):
+        import onnxruntime as ort
+        so = ort.SessionOptions()
+        so.log_severity_level = 3
+        if kind.startswith("dml"):
+            so.enable_mem_pattern = False                                   # DirectML 필수 조건
+            so.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+            if kind == "dml-nofuse":
+                so.add_session_config_entry("ep.dml.disable_graph_fusion", "1")
+                so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
+            if kind == "dml-noopt":
+                so.add_session_config_entry("ep.dml.disable_graph_fusion", "1")
+                so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
+            prov = ["DmlExecutionProvider", "CPUExecutionProvider"]
+        else:
+            prov = ["CPUExecutionProvider"]
+        sess = ort.InferenceSession(str(self.path), so, providers=prov)
+        if kind.startswith("dml") and sess.get_providers()[0] != "DmlExecutionProvider":
+            raise RuntimeError("DirectML 사용 불가")
+        return sess
+
+    def next_session(self, start):
+        """start 번째 설정부터 차례로 세션 만들기. 성공한 번호 반환"""
+        import onnxruntime as ort
+        avail = ort.get_available_providers()
+        for i in range(start, len(self.CONFIGS)):
+            kind, label = self.CONFIGS[i]
+            if kind.startswith("dml") and ("DmlExecutionProvider" not in avail or "--cpu" in sys.argv):
+                continue
+            try:
+                self.sess = self.make(kind)
+                self.cfg = i
+                self.state["device"] = label
+                log("엔진:", label)
+                return i
+            except Exception as e:
+                log("엔진 시작 실패:", label, "-", errtext(e))
+        raise RuntimeError("AI 엔진을 시작하지 못했습니다.")
+
     def load(self):
         try:
-            import onnxruntime as ort
-            path = self.find_model()
-            if not path:
+            self.path = self.find_model()
+            if not self.path:
                 raise FileNotFoundError("models 폴더에 모델 파일(.onnx)이 없습니다.")
-            self.state["model"] = path.name
-            log("모델:", path)
-            avail = ort.get_available_providers()
-            tries = ([["DmlExecutionProvider", "CPUExecutionProvider"]] if "DmlExecutionProvider" in avail else []) + [["CPUExecutionProvider"]]
-            last = None
-            for prov in tries:
-                try:
-                    so = ort.SessionOptions()
-                    so.log_severity_level = 3
-                    sess = ort.InferenceSession(str(path), so, providers=prov)
-                    self.sess = sess
-                    self.state["device"] = "DirectML (GPU)" if sess.get_providers()[0] == "DmlExecutionProvider" else "CPU"
-                    break
-                except Exception as e:  # GPU 초기화 실패 → CPU
-                    last = e
-                    log("엔진 시작 실패:", prov[0], e)
-            if not self.sess:
-                raise last
+            self.state["model"] = self.path.name
+            log("모델:", self.path)
+            self.next_session(0)
             inp = self.sess.get_inputs()[0]
             self.in_name, self.in_type = inp.name, inp.type
             shape = [d if isinstance(d, int) else 1024 for d in inp.shape]
@@ -91,13 +130,26 @@ class Engine:
             self.state.update(ready=True, size=self.size)
             log(f"준비됨 · {self.state['device']} · 입력 {self.size}px · {self.in_type}")
         except Exception as e:
-            self.state["error"] = str(e)
-            try:
-                traceback.print_exc()
-            except Exception:
-                pass
+            self.state["error"] = errtext(e)
+            log("오류:", self.state["error"])
         finally:
             self.state["loading"] = False
+
+    def run(self, x):
+        """계산 중 실패하면 다음 설정으로 세션을 다시 만들어 같은 사진을 재시도"""
+        while True:
+            try:
+                if os.environ.get("VMAN_TEST_FAIL") == self.CONFIGS[self.cfg][0]:   # 테스트용: 이 설정에서 일부러 실패
+                    raise RuntimeError("test failure")
+                return self.sess.run(None, {self.in_name: x})[0]
+            except Exception as e:
+                log("계산 실패:", self.state["device"], "-", errtext(e))
+                if self.cfg >= len(self.CONFIGS) - 1:
+                    raise RuntimeError("계산 실패: " + errtext(e))
+                self.state["ready"] = False
+                self.next_session(self.cfg + 1)
+                self.state["ready"] = True
+                log("다른 설정으로 다시 시도:", self.state["device"])
 
     def infer(self, data):
         S = self.size
@@ -110,7 +162,7 @@ class Engine:
             x = x.astype(np.float16)
         t = time.time()
         with self.lock:
-            out = self.sess.run(None, {self.in_name: x})[0]
+            out = self.run(x)
         a = np.asarray(out, np.float32).reshape(out.shape[-2], out.shape[-1])
         if a.min() < -0.01 or a.max() > 1.01:   # 시그모이드가 그래프 밖에 있는 모델
             a = 1 / (1 + np.exp(-a))
@@ -158,10 +210,10 @@ class Handler(BaseHTTPRequestHandler):
             if n <= 0 or n > 200_000_000:
                 raise ValueError("사진 크기가 올바르지 않습니다.")
             mask, s = ENGINE.infer(self.rfile.read(n))
-            self.send(200, mask, "application/octet-stream", {"X-Mask-Size": str(s)})
+            self.send(200, mask, "application/octet-stream", {"X-Mask-Size": str(s), "X-Device": ENGINE.state["device"].encode("utf-8").hex()})
         except Exception as e:
-            traceback.print_exc()
-            self.send(500, json.dumps({"error": str(e)}).encode(), "application/json")
+            log("처리 실패:", errtext(e))
+            self.send(500, json.dumps({"error": errtext(e)}).encode(), "application/json")
 
 
 def already_running(port):

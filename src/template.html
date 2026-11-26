@@ -535,6 +535,8 @@ async function infer(bmp) {
     g.imageSmoothingQuality = 'high'; g.drawImage(bmp, 0, 0, n, n);
     const r = await fetch('/api/infer', { method: 'POST', body: await c.convertToBlob({ type: 'image/png' }) });
     if (!r.ok) { let m = r.status; try { m = (await r.json()).error; } catch (e) {} throw new Error(m); }
+    const dv = r.headers.get('X-Device');   // 계산 중 GPU→CPU 로 바뀌었을 수 있음
+    if (dv) { try { const d = new TextDecoder().decode(new Uint8Array(dv.match(/../g).map(h => parseInt(h, 16)))); if (d !== device) { device = d; mstat(`PC · ${d} · ${n}px`); } } catch (e) {} }
     return new Uint8Array(await r.arrayBuffer());
   }
   const c = new OffscreenCanvas(MS, MS), g = c.getContext('2d');

@@ -55,6 +55,7 @@
 - `vman.last` 에 `ver:3` — 예전 설정(단순화 뜻 다름)은 버림.
 
 ## 6. 변경 이력 (최신순)
+- v0.7.2 (2026-11-26) PC 엔진: 4090 에서 DirectML 계산 오류(DmlFusedNode 887A0001) → 설정 단계적 재시도(기본 → 그래프 묶기 끔 → 최적화 끔 → CPU), enable_mem_pattern=False·순차 실행, 한글 윈도우 오류 문구 해독 실패(UnicodeDecodeError) 정리, 바뀐 장치를 화면 상태에 반영. `--cpu` 로 CPU 강제
 - v0.7.1 (2026-11-26) PC 엔진: 창 없이(파이프) 실행 시 한글 출력으로 멈추던 문제(UnicodeEncodeError) 수정 → 빌드 서버 실행 확인 통과용
 - v0.7.0 (2026-11-26) PC 엔진(Windows exe, DirectML, BiRefNet_HR-matting 2048, 완전 오프라인), 마스크 크기 자동(1024/2048), 아이콘·README·LICENSES
 - v0.6.1 (2026-11-26) 상단바 'Vector Man' 글자 빼고 VM 로고만
