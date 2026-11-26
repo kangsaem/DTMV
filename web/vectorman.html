@@ -160,7 +160,7 @@ main{grid-template-columns:64px 330px minmax(0,1fr) 360px}
 <style id="bevel"></style>
 </head>
 <body>
-<div id="topline"><b id="cname">사진 없음</b><span id="cinfo"></span><span id="ckey"></span><span class="grow"></span><span class="ver">Vector Man v0.8.1</span></div>
+<div id="topline"><b id="cname">사진 없음</b><span id="cinfo"></span><span id="ckey"></span><span class="grow"></span><span class="ver">Vector Man v0.8.2</span></div>
 <input id="fin" type="file" accept="image/*" multiple hidden>
 <main>
   <nav id="rail">
@@ -200,7 +200,7 @@ main{grid-template-columns:64px 330px minmax(0,1fr) 360px}
       <div id="busy"></div>
       <div id="hv"></div>
       <div id="pvBox" title="미리보기"></div>
-      <div id="bgBox" title="마스크·비트맵 보기의 배경색 (사진 영역)"><span>배경</span></div>
+      <div id="bgBox" title="사진 영역의 배경색 (벡터 바깥 · 마스크 검정 부분 · 비트맵 투명 부분)"><span>배경</span></div>
     </div>
     <div id="bot">
       <button id="undoBtn" class="b" title="되돌리기 (Ctrl+Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M9 7L4 12l5 5"/><path d="M4 12h11a5 5 0 010 10h-3"/></svg></button>
@@ -829,7 +829,7 @@ $('presetPane').onclick = async e => {
   } else if (a.dataset.a === 'reset') { applyPreset(BUILTIN[0]); drawPList(); }
   else if (a.dataset.a === 'exp') {
     if (!userPresets.length) { popup('내보낼 사용자 프리셋이 없습니다.', [['ok', '확인']]); return; }
-    save(new Blob([JSON.stringify({ app: 'vectorman', version: '0.8.1', presets: userPresets.map(p => ({ name: p.name, values: p.v })) }, null, 2)], { type: 'application/json' }), 'vectorman_presets.json');
+    save(new Blob([JSON.stringify({ app: 'vectorman', version: '0.8.2', presets: userPresets.map(p => ({ name: p.name, values: p.v })) }, null, 2)], { type: 'application/json' }), 'vectorman_presets.json');
   } else if (a.dataset.a === 'imp') $('fpreset').click();
 };
 function savePresets() { if (!store.set('vman.presets', userPresets)) popup('이 브라우저에 저장하지 못했습니다.\n내보내기로 파일에 백업하세요.', [['ok', '확인']]); }
@@ -1115,11 +1115,20 @@ function draw() {
   const W = cur.bmp.width, H = cur.bmp.height, s = Math.min((Wc - 56) / W, (Hc - 56) / H), ox = (Wc - W * s) / 2, oy = (Hc - H * s) / 2;
   cur.vw = { ox, oy, s };
   g.save(); g.shadowColor = 'rgba(0,0,0,.3)'; g.shadowBlur = 26; g.shadowOffsetY = 8; g.fillStyle = '#fff'; g.fillRect(ox, oy, W * s, H * s); g.restore();   // 작업대 위 종이
+  const paperBg = def => {   // 사진 영역 배경: 오른쪽 아래 배경색 (기본 = 보기마다 다름)
+    const v = bgVal === 'auto' ? def : bgVal;
+    g.save(); g.beginPath(); g.rect(ox, oy, W * s, H * s); g.clip();
+    if (v === 'check') { g.fillStyle = '#f4f4f4'; g.fillRect(ox, oy, W * s, H * s); g.fillStyle = '#dcdcdc';
+      for (let y = 0; y * 10 < H * s; y++) for (let x = (y & 1); x * 10 < W * s; x += 2) g.fillRect(ox + x * 10, oy + y * 10, 10, 10); }
+    else { g.fillStyle = v; g.fillRect(ox, oy, W * s, H * s); }
+    g.restore();
+  };
   const ready = cur.it.mask && res;
   if (!ready || view === 'line') {
     g.drawImage(cur.bmp, ox, oy, W * s, H * s);
     if (!ready) return;
-    g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(ox, oy, W * s, H * s);
+    if (bgVal === 'auto') { g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(ox, oy, W * s, H * s); }   // 기본 = 사진을 어둡게
+    else paperBg(bgVal);   // 벡터 바깥 = 배경색
     g.save(); g.beginPath(); g.rect(ox, oy, W * s, H * s); g.clip(); g.translate(ox, oy); g.scale(s, s);
     g.save(); g.clip(res.path, 'evenodd'); g.drawImage(cur.bmp, 0, 0); g.restore();
     g.lineWidth = S.lineW / s; g.strokeStyle = S.lineColor; g.lineJoin = 'round'; g.stroke(res.path);
@@ -1133,14 +1142,6 @@ function draw() {
     drawCursor(g);
     return;
   }
-  const paperBg = def => {   // 사진 영역 배경: 오른쪽 아래 배경색 (기본 = 보기마다 다름)
-    const v = bgVal === 'auto' ? def : bgVal;
-    g.save(); g.beginPath(); g.rect(ox, oy, W * s, H * s); g.clip();
-    if (v === 'check') { g.fillStyle = '#f4f4f4'; g.fillRect(ox, oy, W * s, H * s); g.fillStyle = '#dcdcdc';
-      for (let y = 0; y * 10 < H * s; y++) for (let x = (y & 1); x * 10 < W * s; x += 2) g.fillRect(ox + x * 10, oy + y * 10, 10, 10); }
-    else { g.fillStyle = v; g.fillRect(ox, oy, W * s, H * s); }
-    g.restore();
-  };
   if (view === 'vmask') {   // SVG 패스를 그대로 채워서 (저장 없이 SVG 모양 확인)
     const inv = S.maskInv;
     paperBg(inv ? '#ffffff' : '#000000');
@@ -1256,7 +1257,7 @@ function drawCursor(g) {   // 브러시 원 + 방향(+/−)
   if (tool === '1') { const m = painting ? strokeMode : (altDown ? (bmode === '+' ? '-' : '+') : bmode); g.fillStyle = '#fff'; g.font = '700 16px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(m === '+' ? '+' : '−', mx, my); }
 }
 /* ================= 작업대 배경 (보기 전용 · 프리셋과 별개) ================= */
-const BGS = [['auto', '기본 (마스크 = 검정 · 비트맵 = 체크무늬)', 'linear-gradient(135deg,#000 50%,#dcdcdc 50%)'], ['#ffffff', '흰색'], ['#808080', '회색'], ['#000000', '검정'], ['#00b140', '크로마 초록'],
+const BGS = [['auto', '기본 (벡터 = 사진 어둡게 · 마스크 = 검정 · 비트맵 = 체크무늬)', 'linear-gradient(135deg,#000 50%,#dcdcdc 50%)'], ['#ffffff', '흰색'], ['#808080', '회색'], ['#000000', '검정'], ['#00b140', '크로마 초록'],
   ['check', '체크무늬', 'repeating-conic-gradient(#d8d8d8 0 25%,#fff 0 50%) 0 0/8px 8px']];
 let bgVal = 'auto';
 function bgSet(v) {   // 마스크·비트맵 보기에서 사진 영역의 배경 (작업대 바탕은 그대로)
