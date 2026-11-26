@@ -35,6 +35,8 @@
 ## 3. 계획
 1. ~~웹: DTME 스타일 UI, 설정 묶음, 프리셋~~ (v0.2.0 완료) → 사용자 실사진 테스트 대기
 2. PC 엔진(v0.7.0~): exe → 로컬 서버 → 같은 화면(PC 판: ONNX Runtime Web 빼고 JSZip 로컬). 모델 PinkPixel/birefnet-hr-matting-onnx `model_fp16.onnx`(450MB, 입력 image 1×3×2048×2048, 출력 alpha 시그모이드 포함)를 빌드 때 받아 zip 에 포함. 화면은 127.0.0.1 로 열리면 PC 모드(`PC` 상수) → /api/info 대기, 사진을 2048 정사각 PNG 로 보내 uint8 마스크 받음. 실기(4090) 확인 대기.
+  - 빌드 서버 실행 확인(v0.7.1, GitHub windows-latest, GPU 없음): 실제 모델 로드 17초, CPU 로 2048 사진 1장 231초, 마스크 정상(2048×2048). onnxruntime-directml 1.24.4. 릴리스 zip 468MB.
+  - CPU 전용 PC 는 매우 느림 → 필요하면 CPU 용 fp32 모델(889MB) 추가 검토.
 
 ## 4. 설정·프리셋 구조 (v0.2.0~)
 - 설정 정의는 `src/template.html` 의 `GROUPS` 배열 한 곳 → 화면·기본값·프리셋이 모두 여기서 나옴. 새 설정 = 배열에 한 줄 + `opts()`/출력 코드에 반영.
