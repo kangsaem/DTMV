@@ -85,7 +85,7 @@ jobs:
       - name: 패키지 설치
         run: |
           python -m pip install --upgrade pip
-          pip install onnxruntime-directml pillow numpy pyinstaller
+          pip install onnxruntime-directml onnx pillow numpy pyinstaller
           python -c "import onnxruntime as o; print('onnxruntime', o.__version__, o.get_available_providers())"
       - name: 화면 만들기 (인터넷 없이 쓰는 PC 판)
         run: |
@@ -99,7 +99,7 @@ jobs:
           "model bytes: " + (Get-Item models/birefnet_hr_matting_fp16.onnx).Length
       - name: exe 만들기
         run: |
-          pyinstaller --noconfirm --onedir --name VectorMan --icon assets/vm.ico --add-data "pc/app;app" --collect-all onnxruntime pc/vectorman_pc.py
+          pyinstaller --noconfirm --onedir --name VectorMan --icon assets/vm.ico --add-data "pc/app;app" --collect-all onnxruntime --hidden-import onnx --hidden-import onnx.numpy_helper pc/vectorman_pc.py
           Copy-Item -Recurse models dist/VectorMan/models
           Copy-Item pc/README_PC.txt dist/VectorMan/README.txt
           Copy-Item pc/LICENSES.txt dist/VectorMan/LICENSES.txt
