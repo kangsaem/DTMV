@@ -6,6 +6,7 @@
 다음 대화는 이 문서를 기준으로 이어서 작업한다.
 
 - 저장소: **kangsaem/DTMV** (11/26 vman → DTMV 로 저장소 이름만 변경 · zip 이름 `vman-update-*`, 파일명, 제품명 Vector Man 은 그대로). 나중 도메인 후보: `vm.scubob.com`(추천) 또는 `scubob.com/vm`, 호스팅은 GitHub 그대로.
+- 웹 배포: `.github/workflows/pages.yml` → GitHub Pages (`web/vectorman.html` → `index.html`, 루트 `CNAME` = vm.scubob.com). web/ 이 바뀌거나 'PC 엔진 빌드'가 끝나면 자동. 설정: Settings → Pages → Source = **GitHub Actions**, DNS `CNAME vm → kangsaem.github.io`, Enforce HTTPS.
 
 ## 0. 현재 상태
 - 버전: `VERSION` 파일. 결과물: `web/vectorman.html` (한 파일, 크롬에서 열기)
