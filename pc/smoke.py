@@ -1,10 +1,11 @@
 """빌드된 exe 실행 확인: exe 를 --no-browser 로 켜고 /api/info 준비 → (기본) 2048 사진 1장 처리.
 실행: python pc/smoke.py <exe 폴더> [--start-only = 켜지고 모델 올라오는 데까지만]"""
-import json, subprocess, sys, time, io, urllib.request
+import json, os, subprocess, sys, time, io, urllib.request
 from pathlib import Path
 from PIL import Image
 d = Path(sys.argv[1]); exe = d / ('VectorMan.exe' if (d / 'VectorMan.exe').exists() else 'VectorMan')
-p = subprocess.Popen([str(exe), '--no-browser'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+env = dict(os.environ, VMAN_NO_WARMUP='1') if '--start-only' in sys.argv else None   # 빌드 서버엔 GPU 가 없어 시험 계산이 매우 느림
+p = subprocess.Popen([str(exe), '--no-browser'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
 ok = False
 info = {'ready': False, 'loading': True}
 try:

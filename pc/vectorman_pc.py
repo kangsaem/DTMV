@@ -43,15 +43,71 @@ for _s in (sys.stdout, sys.stderr):   # 창 없이(파이프) 실행될 때 한�
         pass
 
 
-def errtext(e):
-    """오류 문구. 한글 윈도우에서 ONNX Runtime 메시지가 cp949 라 utf-8 해독 오류로 가려지는 경우 정리"""
-    try:
-        s = str(e)
-    except Exception:
-        s = repr(e)
+def cp949(e):
+    """한글 윈도우: ONNX Runtime 오류 메시지가 cp949 바이트라 utf-8 해독 오류로 가려짐 → 원문 복원"""
+    b = getattr(e, "object", b"")
+    for enc in ("cp949", "utf-8"):
+        try:
+            return b.decode(enc, errors="replace")
+        except Exception:
+            pass
+    return repr(b)
+
+
+def errtext(e, n=600):
     if isinstance(e, UnicodeDecodeError):
-        s = "AI 엔진 내부 오류 (메시지 해독 실패: 한글 윈도우 인코딩)"
-    return s[:300]
+        s = "AI 엔진 오류: " + cp949(e)
+    else:
+        try:
+            s = str(e)
+        except Exception:
+            s = repr(e)
+    return " ".join(s.split())[:n]
+
+
+def to_fp32(path):
+    """fp16 모델 → fp32 (메모리 안에서). DirectML 일부 환경의 fp16 실행 오류(887A0001) 회피 · CPU 도 fp32 가 빠름"""
+    import onnx
+    from onnx import TensorProto, numpy_helper
+    F16, F32 = TensorProto.FLOAT16, TensorProto.FLOAT
+    m = onnx.load(str(path))
+
+    def fix_tensor(tp):
+        if tp.data_type == F16:
+            a = numpy_helper.to_array(tp).astype(np.float32)
+            tp.CopyFrom(numpy_helper.from_array(a, tp.name))
+
+    def fix_type(vi):
+        tt = vi.type.tensor_type
+        if tt.elem_type == F16:
+            tt.elem_type = F32
+
+    def fix_graph(g):
+        for tp in g.initializer:
+            fix_tensor(tp)
+        for vi in list(g.input) + list(g.output) + list(g.value_info):
+            fix_type(vi)
+        for nd in g.node:
+            for at in nd.attribute:
+                if at.name in ("to", "dtype") and at.type == onnx.AttributeProto.INT and at.i == F16:
+                    at.i = F32
+                if at.type == onnx.AttributeProto.TENSOR:
+                    fix_tensor(at.t)
+                for tp in at.tensors:
+                    fix_tensor(tp)
+                if at.type == onnx.AttributeProto.GRAPH:
+                    fix_graph(at.g)
+                for sg in at.graphs:
+                    fix_graph(sg)
+
+    fix_graph(m.graph)
+    return m.SerializeToString()
+
+
+def is_fp16(path):
+    import onnx
+    m = onnx.load(str(path), load_external_data=False)
+    return any(tp.data_type == onnx.TensorProto.FLOAT16 for tp in m.graph.initializer[:50])
 
 
 def log(*a):
@@ -72,29 +128,52 @@ class Engine:
                     return ms[0]
         return None
 
-    # 시도 순서: DirectML 기본 → DirectML(그래프 묶기 끔) → DirectML(최적화 끔) → CPU
-    #  (일부 그래픽카드·드라이버에서 DmlFusedNode 실행 오류 887A0001 이 나서 단계적으로 낮춤)
-    CONFIGS = [("dml", "DirectML (GPU)"), ("dml-nofuse", "DirectML (GPU · 안전 모드)"), ("dml-noopt", "DirectML (GPU · 최적화 끔)"), ("cpu", "CPU")]
+    # 시도 순서 (v0.8.5): DirectML fp32 → DirectML fp16 → DirectML fp32 안전 모드 → CPU fp32 → CPU 원본
+    #  4090 에서 fp16 + DirectML 이 887A0001 로 실패 → fp32 변환본 먼저. 각 GPU 설정은 시작할 때 시험 계산으로 확인
+    CONFIGS = [("dml", "32", "DirectML (GPU · fp32)"), ("dml", "16", "DirectML (GPU · fp16)"), ("dml-safe", "32", "DirectML (GPU · fp32 안전 모드)"),
+               ("cpu", "32", "CPU (fp32)"), ("cpu", "16", "CPU")]
 
-    def make(self, kind):
+    def model_bytes(self, prec):
+        """prec '32' = fp32 (fp16 모델이면 변환해 캐시), '16' = 원본 파일"""
+        if prec == "16" or not self.fp16:
+            return str(self.path)
+        if self.fp32 is None:
+            t = time.time()
+            self.fp32 = to_fp32(self.path)
+            log(f"fp32 변환 {time.time() - t:.1f}초 · {len(self.fp32) / 1e6:.0f}MB")
+        return self.fp32
+
+    def make(self, kind, prec):
         import onnxruntime as ort
+
+        class Sess(ort.InferenceSession):   # ONNX Runtime 의 '조용히 CPU 로 바꾸기' 끄고, 한글 오류 원문을 살림
+            def _create_inference_session(self, *a, **k):
+                self._enable_fallback = False
+                try:
+                    return super()._create_inference_session(*a, **k)
+                except UnicodeDecodeError as e:
+                    raise RuntimeError(cp949(e)) from None
+
         so = ort.SessionOptions()
         so.log_severity_level = 3
         if kind.startswith("dml"):
             so.enable_mem_pattern = False                                   # DirectML 필수 조건
             so.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-            if kind == "dml-nofuse":
+            if kind == "dml-safe":
                 so.add_session_config_entry("ep.dml.disable_graph_fusion", "1")
                 so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
-            if kind == "dml-noopt":
-                so.add_session_config_entry("ep.dml.disable_graph_fusion", "1")
-                so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
             prov = ["DmlExecutionProvider", "CPUExecutionProvider"]
         else:
             prov = ["CPUExecutionProvider"]
-        sess = ort.InferenceSession(str(self.path), so, providers=prov)
+        sess = Sess(self.model_bytes(prec), so, providers=prov)
         if kind.startswith("dml") and sess.get_providers()[0] != "DmlExecutionProvider":
             raise RuntimeError("DirectML 사용 불가")
+        if kind.startswith("dml") and not os.environ.get("VMAN_NO_WARMUP"):   # 시험 계산: 실패하는 설정은 사진 받기 전에 걸러냄
+            i = sess.get_inputs()[0]
+            n = int(i.shape[-1]) if isinstance(i.shape[-1], int) else 1024
+            t = time.time()
+            sess.run(None, {i.name: np.zeros((1, 3, n, n), np.float16 if "float16" in i.type else np.float32)})
+            log(f"시험 계산 통과 {time.time() - t:.1f}초")
         return sess
 
     def next_session(self, start):
@@ -102,17 +181,22 @@ class Engine:
         import onnxruntime as ort
         avail = ort.get_available_providers()
         for i in range(start, len(self.CONFIGS)):
-            kind, label = self.CONFIGS[i]
+            kind, prec, label = self.CONFIGS[i]
             if kind.startswith("dml") and ("DmlExecutionProvider" not in avail or "--cpu" in sys.argv):
                 continue
+            if prec == "32" and not self.fp16 and any(c[0] == kind and c[1] == "16" for c in self.CONFIGS):
+                continue   # 원래 fp32 모델이면 fp16 설정과 같은 것 → fp32 줄은 건너뜀
             try:
-                self.sess = self.make(kind)
+                self.sess = None
+                self.sess = self.make(kind, prec)
                 self.cfg = i
                 self.state["device"] = label
                 log("엔진:", label)
                 return i
             except Exception as e:
                 log("엔진 시작 실패:", label, "-", errtext(e))
+                if "--debug" in sys.argv:
+                    traceback.print_exc()
         raise RuntimeError("AI 엔진을 시작하지 못했습니다.")
 
     def load(self):
@@ -122,7 +206,15 @@ class Engine:
                 raise FileNotFoundError("models 폴더에 모델 파일(.onnx)이 없습니다.")
             self.state["model"] = self.path.name
             log("모델:", self.path)
+            self.fp16, self.fp32 = is_fp16(self.path), None
+            try:
+                import onnxruntime as ort
+                log("ONNX Runtime", ort.__version__, "·", ", ".join(ort.get_available_providers()))
+            except Exception:
+                pass
             self.next_session(0)
+            if not self.CONFIGS[self.cfg][1] == "32":
+                self.fp32 = None   # 안 쓰는 fp32 사본은 메모리에서 내림
             inp = self.sess.get_inputs()[0]
             self.in_name, self.in_type = inp.name, inp.type
             shape = [d if isinstance(d, int) else 1024 for d in inp.shape]
@@ -139,7 +231,7 @@ class Engine:
         """계산 중 실패하면 다음 설정으로 세션을 다시 만들어 같은 사진을 재시도"""
         while True:
             try:
-                if os.environ.get("VMAN_TEST_FAIL") == self.CONFIGS[self.cfg][0]:   # 테스트용: 이 설정에서 일부러 실패
+                if os.environ.get("VMAN_TEST_FAIL") == self.CONFIGS[self.cfg][2]:   # 테스트용: 이 설정에서 일부러 실패
                     raise RuntimeError("test failure")
                 return self.sess.run(None, {self.in_name: x})[0]
             except Exception as e:
