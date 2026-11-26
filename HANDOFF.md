@@ -59,6 +59,7 @@
 - `vman.last` 에 `ver:3` — 예전 설정(단순화 뜻 다름)은 버림.
 
 ## 6. 변경 이력 (최신순)
+- zip 첫 시험 11/26 14:5x 통과(run 45763105231): `update/vman-update-test.zip`(맨 위 'vman/' 벗김) → `docs/ZIP_TEST.txt` 넣음 · zip 지움 · 커밋 073efd3 → 빌드 '버전 그대로 — 빌드·확인만'. 첫 시도는 풀기 커밋 단계가 .gitignore 경로(pc/app) 지정으로 실패 → 워크플로 고침. v0.7.3 릴리스는 push 로 자동(0.7.3 > 0.7.2).
 - v0.7.3 (2026-11-26) 배포 = DTMC 방식(update/ 에 zip → 풀기·화면 다시 만들기·커밋 → exe 빌드 → VERSION 이 최근 릴리스보다 높으면 릴리스 pc-v<버전>, latest 표시). zip 안 폴더 이름 `VectorMan-v<버전>` + VERSION.txt. 빌드 서버 실행 확인은 기본 '켜지고 모델 올라오는 데까지'(사진 처리는 수동 실행 smoke 체크 때만 — CPU 로 수십 분)
 - v0.7.2 (2026-11-26) PC 엔진: 4090 에서 DirectML 계산 오류(DmlFusedNode 887A0001) → 설정 단계적 재시도(기본 → 그래프 묶기 끔 → 최적화 끔 → CPU), enable_mem_pattern=False·순차 실행, 한글 윈도우 오류 문구 해독 실패(UnicodeDecodeError) 정리, 바뀐 장치를 화면 상태에 반영. `--cpu` 로 CPU 강제
 - v0.7.1 (2026-11-26) PC 엔진: 창 없이(파이프) 실행 시 한글 출력으로 멈추던 문제(UnicodeEncodeError) 수정 → 빌드 서버 실행 확인 통과용
