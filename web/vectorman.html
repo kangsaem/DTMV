@@ -110,8 +110,13 @@ body{grid-template-rows:26px minmax(0,1fr)}
 #bot button{height:32px;min-width:32px;padding:0 9px;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;flex:none;font-size:12px}
 #bot button svg{width:17px;height:17px}
 .grp{display:block}.grp h2{display:none}.grp+.grp h2{display:block;margin-top:12px}
-.sec{padding:10px 10px 8px;border-bottom:1px solid #2e2e2e;transition:background .25s}
-.sec h3{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:13px;color:#ddd}.sec h3 svg{width:16px;height:16px;color:var(--sub)}
+.sec{padding:0;border-bottom:1px solid #2e2e2e;transition:background .25s}
+.sec h3{display:flex;align-items:center;gap:8px;margin:0;height:40px;padding:0 10px;font-size:13px;color:#ddd;cursor:pointer}
+.sec h3::after{content:'▸';margin-left:auto;color:var(--sub);font-size:11px}.sec.open h3::after{content:'▾'}
+.sec:not(.open) h3:hover{background:#2c2c2c}
+.sec:not(.open)>:not(h3){display:none!important}.sec.open{padding-bottom:8px}.sec.open h3{margin-bottom:4px}
+.sec>:not(h3){margin-left:10px;margin-right:10px}
+#allBtn{height:24px;font-size:11px;font-weight:400;padding:0 8px;margin-left:4px}.sec h3 svg{width:16px;height:16px;color:var(--sub)}
 .sec.hl{background:#2b3442;box-shadow:inset 3px 0 0 var(--edge)}.sec.hl h3 svg{color:var(--edge)}
 #setScroll{padding:0}
 #presetPane{display:block}
@@ -155,7 +160,7 @@ main{grid-template-columns:64px 330px minmax(0,1fr) 360px}
 <style id="bevel"></style>
 </head>
 <body>
-<div id="topline"><b id="cname">사진 없음</b><span id="cinfo"></span><span id="ckey"></span><span class="grow"></span><span class="ver">Vector Man v0.8.0</span></div>
+<div id="topline"><b id="cname">사진 없음</b><span id="cinfo"></span><span id="ckey"></span><span class="grow"></span><span class="ver">Vector Man v0.8.1</span></div>
 <input id="fin" type="file" accept="image/*" multiple hidden>
 <main>
   <nav id="rail">
@@ -168,7 +173,7 @@ main{grid-template-columns:64px 330px minmax(0,1fr) 360px}
     <button data-sec="out" title="출력"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M12 4v11M7 10l5 5 5-5M4 20h16"/></svg>출력</button>
   </nav>
   <aside id="drawer" class="pan">
-    <div class="ph">설정<span class="grow"></span><button id="presetBtn" class="b" title="프리셋으로 이동">기본</button></div>
+    <div class="ph">설정<span class="grow"></span><button id="presetBtn" class="b" title="프리셋으로 이동">기본</button><button id="allBtn" class="b" title="모든 묶음 펴기 / 접기">전체 펴기</button></div>
     <div class="pb" id="setScroll">
       <section class="sec" data-sec="preset"><h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="15" r="3"/></svg>프리셋 · 엔진</h3>
       <div id="presetPane">
@@ -195,7 +200,7 @@ main{grid-template-columns:64px 330px minmax(0,1fr) 360px}
       <div id="busy"></div>
       <div id="hv"></div>
       <div id="pvBox" title="미리보기"></div>
-      <div id="bgBox" title="작업대 배경"><span>배경</span></div>
+      <div id="bgBox" title="마스크·비트맵 보기의 배경색 (사진 영역)"><span>배경</span></div>
     </div>
     <div id="bot">
       <button id="undoBtn" class="b" title="되돌리기 (Ctrl+Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M9 7L4 12l5 5"/><path d="M4 12h11a5 5 0 010 10h-3"/></svg></button>
@@ -776,20 +781,43 @@ function markSec(k) {   // 아이콘 줄 · 묶음 강조
   [...$('rail').querySelectorAll('[data-sec]')].forEach(b => b.classList.toggle('on', b.dataset.sec === k));
   document.querySelectorAll('#drawer .sec').forEach(x => x.classList.toggle('hl', x.dataset.sec === k));
 }
-let secLock = 0;
-function setSec(k, quiet) {   // 아이콘 누름 → 그 묶음으로 스크롤 + 강조
+// 접힘: 아이콘 누름 = 그 묶음만 펼침(나머지 자동 접힘) · 제목 줄 = 하나씩 펼침/접음 · 전체 펴기 = 모두 펼치고 아이콘은 스크롤
+const secs = () => [...document.querySelectorAll('#drawer .sec')];
+let allOpen = false, secLock = 0;
+function saveOpen() { store.set('vman.open', { all: allOpen, open: secs().filter(x => x.classList.contains('open')).map(x => x.dataset.sec) }); }
+function setAll(on) {
+  allOpen = on; $('allBtn').textContent = on ? '전체 접기' : '전체 펴기';
+  const hl = (document.querySelector('#drawer .sec.hl') || {}).dataset;
+  secs().forEach(x => x.classList.toggle('open', on || (hl && x.dataset.sec === hl.sec)));
+  saveOpen();
+}
+function setSec(k) {   // 아이콘 누름
   const el = document.querySelector(`#drawer .sec[data-sec="${k}"]`); if (!el) return;
   markSec(k); store.set('vman.sec', k);
-  if (quiet) return;
-  secLock = Date.now(); $('setScroll').scrollTo({ top: el.offsetTop - $('setScroll').offsetTop, behavior: 'smooth' });
+  const box = $('setScroll');
+  if (allOpen) { secLock = Date.now(); box.scrollTo({ top: el.offsetTop - box.offsetTop, behavior: 'smooth' }); return; }
+  secs().forEach(x => x.classList.toggle('open', x === el)); saveOpen();
+  box.scrollTop = 0; if (el.offsetTop - box.offsetTop + el.offsetHeight > box.clientHeight) el.scrollIntoView({ block: 'nearest' });
 }
-$('setScroll').addEventListener('scroll', () => {   // 직접 스크롤하면 위쪽에 걸린 묶음을 강조
-  if (Date.now() - secLock < 700) return;
+$('setScroll').addEventListener('click', e => {   // 제목 줄 = 그 묶음만 펼침/접음 (다른 묶음은 그대로)
+  const h = e.target.closest('.sec > h3'); if (!h) return;
+  const el = h.parentNode, on = !el.classList.contains('open');
+  el.classList.toggle('open', on); markSec(on ? el.dataset.sec : ''); saveOpen();
+});
+$('allBtn').onclick = () => setAll(!allOpen);
+$('setScroll').addEventListener('scroll', () => {   // 전체 펴기 상태에서 직접 스크롤하면 위쪽에 걸린 묶음을 강조
+  if (!allOpen || Date.now() - secLock < 700) return;
   const box = $('setScroll'), y = box.scrollTop + 40; let k = 'preset';
   box.querySelectorAll('.sec').forEach(x => { if (x.offsetTop - box.offsetTop <= y) k = x.dataset.sec; });
-  if (box.scrollTop + box.clientHeight >= box.scrollHeight - 4) k = [...box.querySelectorAll('.sec')].pop().dataset.sec;
+  if (box.scrollTop + box.clientHeight >= box.scrollHeight - 4) k = secs().pop().dataset.sec;
   markSec(k);
 });
+function openInit() {
+  const o = store.get('vman.open', { all: false, open: ['curve'] });
+  allOpen = !!o.all; $('allBtn').textContent = allOpen ? '전체 접기' : '전체 펴기';
+  secs().forEach(x => x.classList.toggle('open', allOpen || (o.open || []).includes(x.dataset.sec)));
+  const first = secs().find(x => x.classList.contains('open')); markSec(first ? first.dataset.sec : '');
+}
 $('rail').onclick = e => { const b = e.target.closest('button[data-sec]'); if (b) setSec(b.dataset.sec); };
 $('presetPane').onclick = async e => {
   const pi = e.target.closest('.pi'), a = e.target.closest('[data-a]');
@@ -801,7 +829,7 @@ $('presetPane').onclick = async e => {
   } else if (a.dataset.a === 'reset') { applyPreset(BUILTIN[0]); drawPList(); }
   else if (a.dataset.a === 'exp') {
     if (!userPresets.length) { popup('내보낼 사용자 프리셋이 없습니다.', [['ok', '확인']]); return; }
-    save(new Blob([JSON.stringify({ app: 'vectorman', version: '0.8.0', presets: userPresets.map(p => ({ name: p.name, values: p.v })) }, null, 2)], { type: 'application/json' }), 'vectorman_presets.json');
+    save(new Blob([JSON.stringify({ app: 'vectorman', version: '0.8.1', presets: userPresets.map(p => ({ name: p.name, values: p.v })) }, null, 2)], { type: 'application/json' }), 'vectorman_presets.json');
   } else if (a.dataset.a === 'imp') $('fpreset').click();
 };
 function savePresets() { if (!store.set('vman.presets', userPresets)) popup('이 브라우저에 저장하지 못했습니다.\n내보내기로 파일에 백업하세요.', [['ok', '확인']]); }
@@ -1105,23 +1133,34 @@ function draw() {
     drawCursor(g);
     return;
   }
+  const paperBg = def => {   // 사진 영역 배경: 오른쪽 아래 배경색 (기본 = 보기마다 다름)
+    const v = bgVal === 'auto' ? def : bgVal;
+    g.save(); g.beginPath(); g.rect(ox, oy, W * s, H * s); g.clip();
+    if (v === 'check') { g.fillStyle = '#f4f4f4'; g.fillRect(ox, oy, W * s, H * s); g.fillStyle = '#dcdcdc';
+      for (let y = 0; y * 10 < H * s; y++) for (let x = (y & 1); x * 10 < W * s; x += 2) g.fillRect(ox + x * 10, oy + y * 10, 10, 10); }
+    else { g.fillStyle = v; g.fillRect(ox, oy, W * s, H * s); }
+    g.restore();
+  };
   if (view === 'vmask') {   // SVG 패스를 그대로 채워서 (저장 없이 SVG 모양 확인)
     const inv = S.maskInv;
-    g.fillStyle = inv ? '#fff' : '#000'; g.fillRect(ox, oy, W * s, H * s);
+    paperBg(inv ? '#ffffff' : '#000000');
     g.save(); g.translate(ox, oy); g.scale(s, s); g.fillStyle = inv ? '#000' : '#fff'; g.fill(res.path, 'evenodd');
     if (res.cutPath) { g.setLineDash([6 / s, 4 / s]); g.strokeStyle = S.cutColor; g.lineWidth = 1.5 / s; g.stroke(res.cutPath); }
     if (tool !== 'view') drawZones(g);
     g.restore(); drawCursor(g); return;
   }
   if (!cur.alpha) cur.alpha = alphaOf(cur.prob, res.bin, cur.ww, cur.wh, W / cur.ww);
-  if (view === 'cut') {   // 투명 = 체크무늬
-    g.save(); g.beginPath(); g.rect(ox, oy, W * s, H * s); g.clip(); g.fillStyle = '#f4f4f4'; g.fillRect(ox, oy, W * s, H * s); g.fillStyle = '#dcdcdc';
-    for (let y = 0; y * 10 < H * s; y++) for (let x = (y & 1); x * 10 < W * s; x += 2) g.fillRect(ox + x * 10, oy + y * 10, 10, 10);
-    g.restore();
+  if (view === 'cut') {   // 투명 부분 = 배경색 (기본 체크무늬)
+    paperBg('check');
     const c = new OffscreenCanvas(cur.ww, cur.wh), cg = c.getContext('2d');
     cg.drawImage(cur.bmp, 0, 0, cur.ww, cur.wh); cg.globalCompositeOperation = 'destination-in'; cg.drawImage(alphaCanvas(cur.alpha, cur.ww, cur.wh), 0, 0);
     g.drawImage(c, ox, oy, W * s, H * s);
-  } else g.drawImage(alphaCanvas(cur.alpha, cur.ww, cur.wh, true, S.maskInv), ox, oy, W * s, H * s);
+  } else {   // 비트맵 마스크: 인물 = 흰색(반전 = 검정, 경계는 투명도) · 나머지 = 배경색 (기본 검정/반전 흰색)
+    paperBg(S.maskInv ? '#ffffff' : '#000000');
+    const c = alphaCanvas(cur.alpha, cur.ww, cur.wh), cg = c.getContext('2d');
+    cg.globalCompositeOperation = 'source-in'; cg.fillStyle = S.maskInv ? '#000' : '#fff'; cg.fillRect(0, 0, cur.ww, cur.wh);
+    g.drawImage(c, ox, oy, W * s, H * s);
+  }
 }
 /* ================= 부분 브러시 ================= */
 let tool = 'view', mouse = null, painting = null;
@@ -1217,18 +1256,19 @@ function drawCursor(g) {   // 브러시 원 + 방향(+/−)
   if (tool === '1') { const m = painting ? strokeMode : (altDown ? (bmode === '+' ? '-' : '+') : bmode); g.fillStyle = '#fff'; g.font = '700 16px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(m === '+' ? '+' : '−', mx, my); }
 }
 /* ================= 작업대 배경 (보기 전용 · 프리셋과 별개) ================= */
-const BGS = [['dots', '모눈', 'radial-gradient(var(--dot) 1px,transparent 1.2px) 0 0/14px 14px,var(--desk)'], ['#ffffff', '흰색'], ['#808080', '회색'], ['#111111', '검정'], ['#00b140', '크로마 초록'],
-  ['check', '체크무늬', 'repeating-conic-gradient(#d8d8d8 0 25%,#fff 0 50%) 0 0/20px 20px']];
-function bgSet(v) {
-  const b = BGS.find(x => x[0] === v); $('stage').style.background = b ? (b[2] || b[0]) : v;
+const BGS = [['auto', '기본 (마스크 = 검정 · 비트맵 = 체크무늬)', 'linear-gradient(135deg,#000 50%,#dcdcdc 50%)'], ['#ffffff', '흰색'], ['#808080', '회색'], ['#000000', '검정'], ['#00b140', '크로마 초록'],
+  ['check', '체크무늬', 'repeating-conic-gradient(#d8d8d8 0 25%,#fff 0 50%) 0 0/8px 8px']];
+let bgVal = 'auto';
+function bgSet(v) {   // 마스크·비트맵 보기에서 사진 영역의 배경 (작업대 바탕은 그대로)
+  const b = BGS.find(x => x[0] === v); bgVal = v;
   [...$('bgBox').querySelectorAll('button')].forEach(x => x.classList.toggle('on', x.dataset.bg === v));
-  $('bgPick').classList.toggle('on', !b); store.set('vman.bg', v);
+  $('bgPick').classList.toggle('on', !b); store.set('vman.bg2', v); draw();
 }
 function bgInit() {
   $('bgBox').insertAdjacentHTML('beforeend', BGS.map(([v, l, css]) => `<button class="b" data-bg="${v}" title="${l}" style="background:${css || v}"></button>`).join('') + '<input id="bgPick" type="color" title="색 고르기" value="#336699">');
   $('bgBox').onclick = e => { const b = e.target.closest('[data-bg]'); if (b) bgSet(b.dataset.bg); };
   $('bgPick').oninput = e => bgSet(e.target.value);
-  bgSet(store.get('vman.bg', 'dots'));
+  bgSet(store.get('vman.bg2', 'auto'));
 }
 function busy(t) { $('busy').textContent = t; $('busy').style.display = t ? 'block' : 'none'; }
 
@@ -1312,7 +1352,7 @@ document.addEventListener('keydown', e => {
 $('pickModel').onclick = () => $('fmodel').click();
 $('fmodel').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f || session) return; sessionP = null; try { await ensureModel(await f.arrayBuffer()); } catch (er) {} };
 const ro = new ResizeObserver(() => draw()); ro.observe($('stage'));
-buildGroups(); syncUI(); bgInit(); markSec('preset'); crumb();
+buildGroups(); syncUI(); bgInit(); openInit(); crumb();
 if (PC) {
   const sel = $('engine'); sel.querySelector('[value=pc]').disabled = false; sel.querySelector('[value=pc]').textContent = 'PC 엔진 · HR-matting 2048'; sel.value = 'pc';
   sel.querySelector('[value=web]').disabled = typeof ort === 'undefined'; $('pickModel').hidden = true;
